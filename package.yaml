@@ -26,6 +26,8 @@ dependencies:
 - hashable
 - unordered-containers
 - text
+- bytestring
+- aeson
 
 ghc-options:
 - -Wall
