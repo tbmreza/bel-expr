@@ -28,6 +28,10 @@ dependencies:
 - text
 - bytestring
 - aeson
+- random
+- time
+- regex-posix
+- scientific
 
 ghc-options:
 - -Wall
