@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE QuasiQuotes #-}
 
 module BEL
   -- ( render, eval
@@ -11,6 +12,7 @@ module BEL
   where
 
 import Debug.Trace
+
 
 import           System.Random (randomR, mkStdGen)
 import Data.Time (Day, fromGregorian)
@@ -27,13 +29,18 @@ import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Text.Encoding (decodeUtf8)
 import           Data.Void (Void)
+import qualified Data.Vector as Vec
 import           Data.Aeson as Aeson (encode)
 import qualified Data.Aeson.Types as Aeson (Value(..))
+import qualified Data.Aeson.JSONPath as Aeson (query)
+import           Data.Aeson.QQ.Simple (aesonQQ)
+import Data.Char (isAlphaNum)
 import qualified Text.Megaparsec.Char as C
 import           Text.Megaparsec ( Parsec, (<|>), some, anySingle, many, choice
                                  , manyTill, lookAhead, try, eof, runParser
                                  , getInput, takeWhile1P, ParseErrorBundle
                                  , parse
+                                 , oneOf
                                  )
 
 import Control.Applicative (empty)
@@ -68,21 +75,20 @@ ioToday = do
 -- }
 
 toExpr :: Env -> [Token] -> IO Expr
-toExpr env [TIdentifier t] = pure $ -- Not really an IO; just so asExpr don't require Env.
+toExpr env [TIdentifier t] = trace "toExpr A" $ pure $ -- Not really an IO; just so asExpr don't require Env.
     Data $ case HM.lookup (Text.unpack t) env of
         Just v -> v
         _ -> Aeson.String t
 toExpr _ [TIdentifier thunk, TParenOpn, TParenCls] = do
 -- [TIdentifier thunk, TUnit] =
     tdy <- ioToday
-    pure $ case thunk of
+    trace "toExpr B" $ pure $ case thunk of
         "today" -> Data $ Aeson.String (Text.pack tdy)
         "year" -> Data $ Aeson.String "2025"
         "dayOfMonth" -> Data $ Aeson.String "4"
         "loremIpsum" -> Data $ Aeson.String "lorem ipsum sit"  -- ??: 255 chars of lorem ipsum text
         _ -> Data $ Aeson.Null
-toExpr env els = pure $ asExpr els
--- toExpr env els = pure $ asExpr env els
+toExpr env els = trace "toExpr C" $ pure $ asExpr els
 
 
 asExpr :: [Token] -> Expr
@@ -92,7 +98,7 @@ asExpr [TNum v1, TPlus, TNum v2] = Data $ Aeson.Number (fromFloatDigits $ v1 + v
 asExpr [TNum v1, TEq, TNum v2] = Eq (Data $ Aeson.Number (fromFloatDigits v1)) (Data $ Aeson.Number (fromFloatDigits v2))
     where
     zz :: Scientific = 9
-
+asExpr [TJsonpath, TQuoted t] = App (Fn "jsonpath") (Data $ Aeson.String t)
 asExpr tokens = trace ("asExpr:" ++ show tokens) (Data $ Aeson.Null)
 
 
@@ -124,23 +130,6 @@ trimQuotes t =
 
 
 
--- renderTemplateText :: Env -> Text -> Either Text Text
--- renderTemplateText env input = do
---     case runParser templateP "template" input of
---         Left err -> trace "upstream rtt Left" (Right input)
---
---         Right segs ->
---             let ret = (trimQuotes $ trimQuotes $ render1 env segs) in
---             trace ("upstream rtt Rite") $ Right ret
-
-
--- -- Either echoes input (on error) or evaluates template given Env.
--- renderTemplate :: Env -> String -> Either String String
--- renderTemplate env input =
---     case runParser templateP "template" (Text.pack input) of
---         Left err -> Right input
---         Right segs -> Right (Text.unpack $ (trimQuotes $ render1 env segs))
-
 isPredicate :: Expr -> Bool
 isPredicate e =
     case e of
@@ -149,37 +138,21 @@ isPredicate e =
 
 eval :: Env -> Text -> IO Aeson.Value
 eval env input = do
-    let tokens = case runParser exprP "todo" input of
-            Left _ -> trace ("eval atas") []
-            Right tokens -> trace "eval bawah" tokens
-    e <- toExpr env tokens
-    pure $ finalValue env (match e)
+    trace ("exprP input:\t" ++ show input) $ case runParser exprP "" input of
+        Left _ -> pure $ Aeson.String input
+        Right (tokens :: [Token]) -> do
+            e <- toExpr env (trace ("tokens:\t" ++ show tokens) tokens)
+            pure $ (trace ("match input:\t" ++ show e) $ finalValue env (match env e))
 
--- eval1 :: Text -> Aeson.Value
--- eval1 t =
---     -- http://localhost:9999/echo.php
---     case runParser exprP "todo" t of
---         -- Left _ -> Aeson.Null  ??
---         -- Left msg -> Aeson.String (Text.pack $ show msg)
---         -- Left msg -> Aeson.String (mconcat ["bel_msg:\t", t])
---         Left msg -> Aeson.String t
---         Right tokens -> dataFrom tokens
---     where
---     dataFrom :: [Token] -> Aeson.Value
---     dataFrom tokens =
---         -- let Data v = match $ asExpr tokens in
---         -- v
---         let Data v = match $ asExpr tokens in
---         v
 
 finalValue :: Env -> Expr -> Aeson.Value
 
 finalValue env (Data x@(Aeson.String k)) =
-    trace "finalValue!" (case HM.lookup (Text.unpack k) env of
+    trace ("matched:\t" ++ show x ++ "\tfinalValue!") (case HM.lookup (Text.unpack k) env of
         Just v -> v
         Nothing -> x)
 
-finalValue _ (Data final) = trace "not ae string" final
+finalValue _ (Data final) = trace "eval:final not a string" final
 finalValue _ e = Aeson.String (Text.pack $ show e)
 
 data Expr
@@ -198,8 +171,8 @@ data Expr
 -- headers: header, cookie
 -- body: jsonpath, bytes
 
-match :: Expr -> Expr
-match = go  -- ??: find necessity for runExcept
+match :: Env -> Expr -> Expr
+match env = go  -- ??: find necessity for runExcept
     where
     go :: Expr -> Expr
 
@@ -214,13 +187,45 @@ match = go  -- ??: find necessity for runExcept
 
     go (App (Fn "ident") arg@(Data _)) = arg
 
-    -- ??: acquire response body & headers
-    go (App (Fn "jsonpath") (Data (Aeson.String s))) = Data Aeson.Null
+    go (App (Fn "jsonpath") (Data (Aeson.String q))) =
+        let root :: Aeson.Value = (HM.lookupDefault Aeson.Null "RESP_BODY" env) in
+        trace "go jsonpath called!!" $ case queryBody (Text.unpack q) root of
+            Nothing -> Data $ Aeson.String ""  -- ??: maybe due to space-prefixed q string
+            Just one -> Data one
 
     go (App (Fn "today") _) = trace "go today:" (Data (Aeson.String "??"))
 
     -- -- go (Neg e) = negate <$> go e
 
+    -- L.x
+    -- | JSONPATH    AlexPosn String
+    -- \$ $printable+            { tok (\p s -> JSONPATH p s) }
+    --
+    -- syn.hhs
+    -- [Captures]
+    -- TOKEN: jsonpath "$.data.token"
+    -- [Asserts]
+    -- jsonpath "$.data.name" == "alice"
+
+invocJsonpath :: Parser [Token]
+invocJsonpath = try $ do
+    _ <- C.string "jsonpath"
+    sc
+    _ <- C.char '"'
+    t <- takeWhile1P Nothing (/= '"')
+    _ <- C.char '"'
+    -- ??
+    -- t <- Text.pack <$> (C.char '"' *> manyTill L.charLiteral (C.char '"'))
+    pure [TJsonpath, TQuoted t]
+
+-- Expect one matching Value or ??log.
+queryBody :: String -> Aeson.Value -> Maybe Aeson.Value
+queryBody q root =
+    case Aeson.query q root of
+        Left _ -> Nothing
+        Right v -> case Vec.uncons v of
+            Nothing -> Nothing
+            Just (one, _) -> Just one
 
 type NeedsEval = Text
 data Part =
@@ -244,7 +249,9 @@ data Token =
   | TBool Bool
   | TTrue | TFalse
   | TEq | TNeq
+  | TJsonpath
   | TIdentifier Text
+  | TQuoted Text
   | TParenOpn | TParenCls
   -- | TNum Scientific  -- ??: pro [Aeson] opp [parseFloat]
   | TPlus
@@ -314,9 +321,9 @@ invoc = try $ do
 exprP :: Parser [Token]
 exprP = try $ do
     sc
-    parts <- numEqNum <|> bool <|> invoc <|> word
-    -- parts <- numEqNum <|> bool <|> invoc
-    pure parts
+    -- tokens <- numEqNum <|> bool <|> invoc <|> word <|> invocJsonpath
+    tokens <- invocJsonpath <|> numEqNum <|> bool <|> invoc <|> word
+    pure tokens
 
 templateP :: Parser [Segment]
 templateP = do
@@ -329,16 +336,27 @@ templateP = do
 
 partsP :: Parser [Part]
 partsP = do
-    -- parts :: [Part] <- many ((try needsEvalP) <|> literalP)
+    -- parts :: [Part] <- many ((try needsEvalP') <|> literalP)
     -- pure parts
+    -- many ((try needsEvalP') <|> literalP)
     many ((try needsEvalP) <|> literalP)
 
--- {{...}} variable (escaped)
+-- {{...}} variable (escaped) ??
+needsEvalP' :: Parser Part
+needsEvalP' = try $ do
+    _ <- C.string "{{"
+    sc
+    w <- wordP
+    sc
+    _ <- C.string "}}"
+    pure (L w)
+
 needsEvalP :: Parser Part
 needsEvalP = try $ do
     _ <- C.string "{{"
     sc
-    w <- wordP
+    w <- textP
+    -- w <- wordP
     sc
     _ <- C.string "}}"
     pure (L w)
@@ -375,8 +393,9 @@ asText x = decodeUtf8 (ByteString.toStrict (Aeson.encode x))
 partitions :: Text -> [Part]
 partitions input =
     case runParser partsP "??: unused?" input of
-        Right parts -> parts
-        _ -> []
+        Left _ -> trace "partitions 0" [R input]
+        Right [] -> trace "partitions A" [R input]
+        Right parts -> trace "partitions B" parts
 
 -- Argument either needs evaluation (Left) or already just "Right".
 render :: Env -> Aeson.Value -> [Part] -> IO Aeson.Value
@@ -391,50 +410,15 @@ render env (Aeson.String acc) ((L t):rest) = do
     evaled :: Aeson.Value <- eval env t
 
     -- Non-String `eval` result is internal error.
-    let Aeson.String txt = evaled
+    -- ??: handle Aeson.Object
+    let Aeson.String txt = trace ("evaled:\t" ++ show evaled) evaled
 
     render env (Aeson.String $ Text.concat [acc, txt]) rest
+
 
 impureRenderTemplate :: Env -> Text -> IO (Either String Text)
 impureRenderTemplate env input = do
     pure (Right "")
-
--- render' :: Env -> [Segment] -> Text
--- -- render' env = (Text.concat . fmap renderSeg)
--- render' env = do
---     res
---     where
---     res :: [Segment] -> Text
---     res = Text.concat . mapped
---     -- mapped :: f0 Segment -> f0 Text
---     mapped = fmap renderSeg
---     renderSeg :: Segment -> Text
---     renderSeg (Lit t)     = asText $ eval1 t
---     renderSeg _ = ""
---     -- renderSeg (Var k)  =
---     --     let val :: Aeson.Value = case HM.lookup (Text.unpack k) env of
---     --          Just defined -> defined
---     --          Nothing -> eval k
---     --     in
---     --     decodeUtf8 (ByteString.toStrict (Aeson.encode val))
---     -- renderSeg (RawVar k)  =
---     --     let val :: Aeson.Value = (HM.lookupDefault Aeson.Null (Text.unpack k) env) in
---     --     decodeUtf8 (ByteString.toStrict (Aeson.encode val))
-
--- render1 :: Env -> [Segment] -> Text
--- render1 env = Text.concat . fmap renderSeg
---     where
---     renderSeg :: Segment -> Text
---     renderSeg (Lit t)     = asText $ eval1 t
---     renderSeg (Var k)  =
---         let val :: Aeson.Value = case HM.lookup (Text.unpack k) env of
---              Just defined -> defined
---              Nothing -> eval1 k
---         in
---         decodeUtf8 (ByteString.toStrict (Aeson.encode val))
---     renderSeg (RawVar k)  =
---         let val :: Aeson.Value = (HM.lookupDefault Aeson.Null (Text.unpack k) env) in
---         decodeUtf8 (ByteString.toStrict (Aeson.encode val))
 
 identifier :: Parser Text
 identifier = do
@@ -447,6 +431,9 @@ word = do
     xs <- some $ C.alphaNumChar <|> C.char '_' <|> C.char '.' <|> C.char '(' <|> C.char ')'
     pure [TIdentifier (Text.pack xs)]
 
+textP :: Parser Text
+textP = do
+    Text.pack <$> some (C.alphaNumChar <|> oneOf ("_(). \"\"$" :: String))
 
 wordP :: Parser Text
 wordP = do

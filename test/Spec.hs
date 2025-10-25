@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE QuasiQuotes #-}
 
 
 import Debug.Trace
@@ -9,6 +10,7 @@ import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Void (Void)
 import qualified Data.Aeson.Types as Aeson (Value(..))
+import           Data.Aeson.QQ.Simple (aesonQQ)
 import qualified Text.Megaparsec.Char as C
 import           Text.Megaparsec ( Parsec, (<|>), some, anySingle, many, choice
                                  , manyTill, lookAhead, try, eof, runParser
@@ -58,12 +60,44 @@ import BEL
 
 
 
+-- -- ok
+-- main :: IO ()
+-- main = do
+--     let root :: Aeson.Value = [aesonQQ| { "data": { "token": "abcdefghi9" } } |]
+--     let envNew :: Env = HM.fromList [("year", Aeson.String "2025"), ("RESP_BODY", root)]
+--
+--     -- ok:
+--     -- res <- render envNew (Aeson.String "") (partitions "  {{year}}  another sen {{year}} tence")
+--     -- res <- render envNew (Aeson.String "") (partitions "{ \"user\": 12 }")
+--     -- res <- render envNew (Aeson.String "") (partitions "jsonpath \"$.data\"")
+--     let parted = partitions "{{jsonpath \"$.data\"}}"  -- expect L "jsonpath \"$.data\""
+--     putStrLn $ show parted
+
+-- ok
 main :: IO ()
 main = do
-    let envNew :: Env = HM.fromList [("year", Aeson.String "2025")]
-    res <- render envNew (Aeson.String "") (partitions "  {{year}}  another sen {{year}} tence")
-    putStrLn $ show res
-    -- ?? arith tests
+    let root :: Aeson.Value = [aesonQQ| { "data": { "token": "abcdefghi9" } } |]
+    let envNew :: Env = HM.fromList [("year", Aeson.String "2025"), ("RESP_BODY", root)]
+    -- ?? higher order Expr don't yield space-prefixed query string
+
+    let parted = partitions "{{jsonpath \"$.data.token\"}}"  -- expect L "jsonpath \"$.data\""
+    putStrLn $ show parted
+
+    rendered <- render envNew (Aeson.String "") parted
+    putStrLn $ show rendered
+
+    -- -- let prog :: Expr = asExpr [TIdentifier "jsonpath", TQuoted "$.data.token"]
+    -- let prog :: Expr = asExpr [TJsonpath, TQuoted "$.data.token"]
+    -- -- let prog :: Expr = App (Fn "jsonpath") (Data $ Aeson.String "$.data.token")
+    -- let matched = match envNew prog
+    -- let final = finalValue envNew matched
+    --
+    -- putStrLn $ show final
+
+
+-- ?? arith tests
+
+-- rendered :: Aeson.Value <- BEL.render env (Aeson.String "") (BEL.partitions $ Text.pack s)
 
 -- ok
 -- main :: IO ()

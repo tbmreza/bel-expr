@@ -35,6 +35,7 @@ library
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
   build-depends:
       aeson
+    , aeson-jsonpath >=0.3.0.2 && <0.4.0.0
     , base >=4.7 && <5
     , bytestring
     , hashable
@@ -46,6 +47,7 @@ library
     , time
     , transformers
     , unordered-containers
+    , vector
   default-language: Haskell2010
 
 executable bel-expr-exe
@@ -59,6 +61,7 @@ executable bel-expr-exe
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson
+    , aeson-jsonpath >=0.3.0.2 && <0.4.0.0
     , base >=4.7 && <5
     , bel-expr
     , bytestring
@@ -71,6 +74,7 @@ executable bel-expr-exe
     , time
     , transformers
     , unordered-containers
+    , vector
   default-language: Haskell2010
 
 test-suite bel-expr-test
@@ -85,6 +89,7 @@ test-suite bel-expr-test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson
+    , aeson-jsonpath >=0.3.0.2 && <0.4.0.0
     , base >=4.7 && <5
     , bel-expr
     , bytestring
@@ -97,4 +102,5 @@ test-suite bel-expr-test
     , time
     , transformers
     , unordered-containers
+    , vector
   default-language: Haskell2010
