@@ -1,15 +1,11 @@
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE QuasiQuotes #-}
 
 module BEL
-  -- ( render, eval
-  -- ( renderTemplate
-  -- , Env
-  -- , litP, varP, templateP
-  -- )
-  where
+  ( Env
+  , partitions, Part(..)
+  , eval, render
+  ) where
 
 import Debug.Trace
 
@@ -19,10 +15,10 @@ import Data.Time (Day, fromGregorian)
 import Data.Time.Format (formatTime, defaultTimeLocale)
 -- import Data.Time.Clock (getCurrentTime)
 import Data.Time.Clock
-import Text.Regex.Posix ((=~))
+-- import Text.Regex.Posix ((=~))
 
 
-import           Data.Either
+-- import           Data.Either
 import qualified Data.ByteString.Lazy as ByteString (toStrict)
 import qualified Data.HashMap.Strict as HM
 import           Data.Text (Text)
@@ -33,12 +29,14 @@ import qualified Data.Vector as Vec
 import           Data.Aeson as Aeson (encode)
 import qualified Data.Aeson.Types as Aeson (Value(..))
 import qualified Data.Aeson.JSONPath as Aeson (query)
-import           Data.Aeson.QQ.Simple (aesonQQ)
-import Data.Char (isAlphaNum)
+-- import           Data.Aeson.QQ.Simple (aesonQQ)
+-- import Data.Char (isAlphaNum)
 import qualified Text.Megaparsec.Char as C
-import           Text.Megaparsec ( Parsec, (<|>), some, anySingle, many, choice
-                                 , manyTill, lookAhead, try, eof, runParser
-                                 , getInput, takeWhile1P, ParseErrorBundle
+import           Text.Megaparsec ( Parsec, (<|>), some
+                                 -- , anySingle, choice, getInput, manyTill, lookAhead
+                                 , many
+                                 , try, eof, runParser
+                                 , takeWhile1P, ParseErrorBundle
                                  , parse
                                  , oneOf
                                  )
@@ -46,6 +44,24 @@ import           Text.Megaparsec ( Parsec, (<|>), some, anySingle, many, choice
 import Control.Applicative (empty)
 import qualified Text.Megaparsec.Char.Lexer as L
 import Data.Scientific (Scientific, fromFloatDigits)
+
+_unusedBatteries :: IO ()
+_unusedBatteries = do
+    let _ = (isoDate, exampleDay, pureRandomInt)
+    pure ()
+
+_allowUnused :: IO ()
+_allowUnused = do
+    let _ = litP
+    let _ = rawVarP
+    let _ = varP
+    let _ = lineP
+    let _ = relP
+    let _ = needsEvalP'
+    let _ = templateP
+    let _ = asText
+    let _ = (isPredicate, trimQuotesText, parseFloat)
+    pure ()
 
 -- Battery {
 
@@ -88,7 +104,7 @@ toExpr _ [TIdentifier thunk, TParenOpn, TParenCls] = do
         "dayOfMonth" -> Data $ Aeson.String "4"
         "loremIpsum" -> Data $ Aeson.String "lorem ipsum sit"  -- ??: 255 chars of lorem ipsum text
         _ -> Data $ Aeson.Null
-toExpr env els = trace "toExpr C" $ pure $ asExpr els
+toExpr _env els = trace "toExpr C" $ pure $ asExpr els
 
 
 asExpr :: [Token] -> Expr
@@ -97,7 +113,7 @@ asExpr [TBool v] = Data $ Aeson.Bool v
 asExpr [TNum v1, TPlus, TNum v2] = Data $ Aeson.Number (fromFloatDigits $ v1 + v2)
 asExpr [TNum v1, TEq, TNum v2] = Eq (Data $ Aeson.Number (fromFloatDigits v1)) (Data $ Aeson.Number (fromFloatDigits v2))
     where
-    zz :: Scientific = 9
+    _zz :: Scientific = 9
 asExpr [TJsonpath, TQuoted t] = App (Fn "jsonpath") (Data $ Aeson.String t)
 asExpr tokens = trace ("asExpr:" ++ show tokens) (Data $ Aeson.Null)
 
@@ -107,6 +123,7 @@ asExpr tokens = trace ("asExpr:" ++ show tokens) (Data $ Aeson.Null)
 sc :: Parser ()
 sc = L.space C.space1 empty empty
 
+-- ??: suppress fromIntegral type-defaults warning
 float :: Parser Double
 float = L.signed sc (try L.float <|> fmap fromIntegral L.decimal)
 
@@ -119,8 +136,19 @@ parseFloat = parse (float <* eof) "<input>"
 type Env = HM.HashMap String Aeson.Value
 type Parser = Parsec Void Text
 
-trimQuotes :: Text -> Text
-trimQuotes t =
+show' :: Text -> String
+show' t = trimQuotes $ show t
+    where
+    trimQuotes :: String -> String
+    trimQuotes s =
+      case s of
+        ('"':xs) -> case reverse xs of
+                      ('"':ys) -> reverse ys
+                      _        -> s
+        _        -> s
+
+trimQuotesText :: Text -> Text
+trimQuotesText t =
   case Text.uncons t of
     Just ('"', rest) ->
       case Text.unsnoc rest of
@@ -187,13 +215,16 @@ match env = go  -- ??: find necessity for runExcept
 
     go (App (Fn "ident") arg@(Data _)) = arg
 
+    -- Empty string if q not found in RESP_BODY.
     go (App (Fn "jsonpath") (Data (Aeson.String q))) =
-        let root :: Aeson.Value = (HM.lookupDefault Aeson.Null "RESP_BODY" env) in
-        trace "go jsonpath called!!" $ case queryBody (Text.unpack q) root of
-            Nothing -> Data $ Aeson.String ""  -- ??: maybe due to space-prefixed q string
+        let root :: Aeson.Value = (HM.lookupDefault (Aeson.String "hm") "RESP_BODY" env) in
+        trace ("go:jsonpath\t" ++ (Text.unpack q) ++ "\nroot:\t" ++ show root) $ case queryBody (Text.unpack q) root of
+            Nothing -> trace ("go:jsonpath:Nothing") (Data $ Aeson.String "")  -- ??: maybe due to space-prefixed q string
             Just one -> Data one
 
     go (App (Fn "today") _) = trace "go today:" (Data (Aeson.String "??"))
+
+    go _ = undefined
 
     -- -- go (Neg e) = negate <$> go e
 
@@ -207,16 +238,19 @@ match env = go  -- ??: find necessity for runExcept
     -- [Asserts]
     -- jsonpath "$.data.name" == "alice"
 
+jsonpathArg :: Parser [Token]
+jsonpathArg = try $ do
+    _ <- C.char '"'
+    t <- takeWhile1P Nothing (/= '"')
+    _ <- C.char '"'
+    pure [TQuoted t]
+
 invocJsonpath :: Parser [Token]
 invocJsonpath = try $ do
     _ <- C.string "jsonpath"
     sc
-    _ <- C.char '"'
-    t <- takeWhile1P Nothing (/= '"')
-    _ <- C.char '"'
-    -- ??
-    -- t <- Text.pack <$> (C.char '"' *> manyTill L.charLiteral (C.char '"'))
-    pure [TJsonpath, TQuoted t]
+    [quoted] <- jsonpathArg
+    pure [TJsonpath, quoted]
 
 -- Expect one matching Value or ??log.
 queryBody :: String -> Aeson.Value -> Maybe Aeson.Value
@@ -258,19 +292,6 @@ data Token =
   | TNum Double
   deriving (Show, Eq)
 
--- ??
-tokenOpn :: Parser Token
-tokenOpn = TParenOpn <$ C.char '('
--- tokenOpn :: Parser Token
--- tokenOpn = try $ do
---     _ <- C.char '('
---     pure TParenOpn
-
-tokenUnit :: Parser Token
-tokenUnit = try $ do
-    _ <- C.string "()"
-    pure TUnit
-
 tokenTrue :: Parser Token
 tokenTrue = try $ do
     _ <- C.string "true"
@@ -286,13 +307,6 @@ bool = try $ do
     b <- tokenFalse <|> tokenTrue
     pure [b]
 
-tokenNeq :: Parser Token
-tokenNeq = try $ do
-    sc
-    _ <- C.string "!="
-    sc
-    pure TNeq
-
 tokenEq :: Parser Token
 tokenEq = try $ do
     sc
@@ -301,10 +315,11 @@ tokenEq = try $ do
     sc
     pure TEq
 
+-- ?? or tokenNeq
 numEqNum :: Parser [Token]
 numEqNum = try $ do
     num1 :: Double <- float
-    eq <- tokenEq  -- ?? or tokenNeq
+    eq <- tokenEq
     num2 :: Double <- float
     pure [TNum num1, eq, TNum num2]
 
@@ -321,8 +336,12 @@ invoc = try $ do
 exprP :: Parser [Token]
 exprP = try $ do
     sc
-    -- tokens <- numEqNum <|> bool <|> invoc <|> word <|> invocJsonpath
-    tokens <- invocJsonpath <|> numEqNum <|> bool <|> invoc <|> word
+    tokens <- trace "exprP 1" invocJsonpath
+          <|> trace "exprP 2" numEqNum
+          <|> trace "exprP 3" bool
+          <|> trace "exprP 4" invoc
+          <|> trace "exprP 5" word
+          <|> trace "exprP 6" jsonpathArg
     pure tokens
 
 templateP :: Parser [Segment]
@@ -331,8 +350,6 @@ templateP = do
     eof
     pure segs
 
--- "{{whole_thing_in_mustache}}"
--- "may have prefix {{subst to eval}} or suffix"
 
 partsP :: Parser [Part]
 partsP = do
@@ -399,7 +416,7 @@ partitions input =
 
 -- Argument either needs evaluation (Left) or already just "Right".
 render :: Env -> Aeson.Value -> [Part] -> IO Aeson.Value
-render env accStr [] =
+render _env accStr [] =
     pure accStr
 
 render env (Aeson.String acc) ((R t):rest) =
@@ -409,16 +426,19 @@ render env (Aeson.String acc) ((R t):rest) =
 render env (Aeson.String acc) ((L t):rest) = do
     evaled :: Aeson.Value <- eval env t
 
-    -- Non-String `eval` result is internal error.
-    -- ??: handle Aeson.Object
-    let Aeson.String txt = trace ("evaled:\t" ++ show evaled) evaled
+    let str = case evaled of
+            Aeson.String txt -> show' txt
+            Aeson.Object obj -> show obj
+            _ -> ("unhandled render L" :: String)
 
-    render env (Aeson.String $ Text.concat [acc, txt]) rest
+    render env (Aeson.String $ Text.concat [acc, Text.pack str]) rest
+
+render _ _ _ = undefined
 
 
-impureRenderTemplate :: Env -> Text -> IO (Either String Text)
-impureRenderTemplate env input = do
-    pure (Right "")
+-- impureRenderTemplate :: Env -> Text -> IO (Either String Text)
+-- impureRenderTemplate env input = do
+--     pure (Right "")
 
 identifier :: Parser Text
 identifier = do
@@ -429,7 +449,7 @@ identifier = do
 word :: Parser [Token]
 word = do
     xs <- some $ C.alphaNumChar <|> C.char '_' <|> C.char '.' <|> C.char '(' <|> C.char ')'
-    pure [TIdentifier (Text.pack xs)]
+    trace ("word xs:" ++ xs) $ pure [TIdentifier (Text.pack xs)]
 
 textP :: Parser Text
 textP = do

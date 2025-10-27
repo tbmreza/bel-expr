@@ -98,6 +98,8 @@ test-suite bel-expr-test
     , random
     , regex-posix
     , scientific
+    , tasty
+    , tasty-hunit
     , text
     , time
     , transformers

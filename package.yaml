@@ -70,3 +70,5 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - bel-expr
+    - tasty
+    - tasty-hunit

@@ -5,6 +5,8 @@
 
 import Debug.Trace
 
+import Test.Tasty
+import Test.Tasty.HUnit
 import qualified Data.HashMap.Strict as HM
 import           Data.Text (Text)
 import qualified Data.Text as Text
@@ -17,7 +19,7 @@ import           Text.Megaparsec ( Parsec, (<|>), some, anySingle, many, choice
                                  , parseTest
                                  )
 
-import BEL
+import qualified BEL
 
 -- main :: IO ()
 -- main = do
@@ -73,27 +75,35 @@ import BEL
 --     let parted = partitions "{{jsonpath \"$.data\"}}"  -- expect L "jsonpath \"$.data\""
 --     putStrLn $ show parted
 
--- ok
-main :: IO ()
-main = do
+testPartitions :: TestTree
+testPartitions = testCase "valid bel program" $ do
     let root :: Aeson.Value = [aesonQQ| { "data": { "token": "abcdefghi9" } } |]
-    let envNew :: Env = HM.fromList [("year", Aeson.String "2025"), ("RESP_BODY", root)]
+    let envNew :: BEL.Env = HM.fromList [("year", Aeson.String "2025"), ("RESP_BODY", root)]
     -- ?? higher order Expr don't yield space-prefixed query string
 
-    let parted = partitions "{{jsonpath \"$.data.token\"}}"  -- expect L "jsonpath \"$.data\""
+    -- let parted = partitions "{{jsonpath \"$.data.token\"}}"  -- expect L "jsonpath \"$.data\""
+    let parted = BEL.partitions "{{jsonpath \"$.data\"}}"
+    putStrLn $ show parted
+    -- assertFailure "msg"
+
+test1 :: TestTree
+test1 = testCase "jsonpathArg" $ do
+    let root :: Aeson.Value = [aesonQQ| { "data": { "token": "abcdefghi9" } } |]
+    let parted = BEL.partitions "$.data.token"
     putStrLn $ show parted
 
-    rendered <- render envNew (Aeson.String "") parted
-    putStrLn $ show rendered
+main :: IO ()
+main = defaultMain $ testGroup "Happy tests" [
+    -- testPartitions  -- ok
+    test1
+  ]
 
-    -- -- let prog :: Expr = asExpr [TIdentifier "jsonpath", TQuoted "$.data.token"]
-    -- let prog :: Expr = asExpr [TJsonpath, TQuoted "$.data.token"]
-    -- -- let prog :: Expr = App (Fn "jsonpath") (Data $ Aeson.String "$.data.token")
-    -- let matched = match envNew prog
-    -- let final = finalValue envNew matched
-    --
-    -- putStrLn $ show final
 
+--     let parted = partitions "{{jsonpath \"$.data\"}}"
+--     putStrLn $ show parted
+--
+--     rendered <- render envNew (Aeson.String "") parted
+--     putStrLn $ show rendered
 
 -- ?? arith tests
 
