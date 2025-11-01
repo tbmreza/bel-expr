@@ -21,6 +21,18 @@ import           Text.Megaparsec ( Parsec, (<|>), some, anySingle, many, choice
 
 import qualified BEL
 
+main :: IO ()
+main = defaultMain $ testGroup "Happy tests"
+  -- [ test2 ]
+
+  [ test0
+  , test1
+  , test2
+  , test5
+  ]
+
+
+
 -- main :: IO ()
 -- main = do
 --     let envNew :: Env = HM.fromList [("yyyymmdd", Aeson.String "19700101"), ("year", Aeson.String "2025")]
@@ -75,39 +87,57 @@ import qualified BEL
 --     let parted = partitions "{{jsonpath \"$.data\"}}"  -- expect L "jsonpath \"$.data\""
 --     putStrLn $ show parted
 
-testPartitions :: TestTree
-testPartitions = testCase "valid bel program" $ do
-    let root :: Aeson.Value = [aesonQQ| { "data": { "token": "abcdefghi9" } } |]
-    let envNew :: BEL.Env = HM.fromList [("year", Aeson.String "2025"), ("RESP_BODY", root)]
-    -- ?? higher order Expr don't yield space-prefixed query string
+-- ?? higher order Expr don't yield space-prefixed query string
+test0 :: TestTree
+test0 = testCase "valid bel program" $ do
+    let parted = BEL.partitions "{{jsonpath \"$.data.token\"}}"
 
-    -- let parted = partitions "{{jsonpath \"$.data.token\"}}"  -- expect L "jsonpath \"$.data\""
-    let parted = BEL.partitions "{{jsonpath \"$.data\"}}"
-    putStrLn $ show parted
-    -- assertFailure "msg"
+    case parted == [BEL.L "jsonpath \"$.data.token\""] of
+        True -> pure ()
+        _ -> assertFailure $ show parted
 
 test1 :: TestTree
 test1 = testCase "jsonpathArg" $ do
     let root :: Aeson.Value = [aesonQQ| { "data": { "token": "abcdefghi9" } } |]
-    let parted = BEL.partitions "$.data.token"
-    putStrLn $ show parted
+    let envNew :: BEL.Env = HM.fromList [("year", Aeson.String "2025"), ("RESP_BODY", root)]
 
-main :: IO ()
-main = defaultMain $ testGroup "Happy tests" [
-    -- testPartitions  -- ok
-    test1
-  ]
+    avPositive <- BEL.render envNew (Aeson.String "") (BEL.partitions "{{jsonpath \"$.data.token\"}}")
+    avNegative <- BEL.render envNew (Aeson.String "") (BEL.partitions "{{jsonpath \"$.data.doesntexist\"}}")
 
+    case (avPositive, avNegative) of
+        (Aeson.String "abcdefghi9", Aeson.String "") -> pure ()
+        (av, _) -> assertFailure $ show av
 
---     let parted = partitions "{{jsonpath \"$.data\"}}"
---     putStrLn $ show parted
---
---     rendered <- render envNew (Aeson.String "") parted
---     putStrLn $ show rendered
+test2 :: TestTree
+test2 = testCase "partition sentence" $ do
+    let parted = BEL.partitions "been up for {{dur}} minutes."
 
--- ?? arith tests
+    case parted == [BEL.R "been up for ", BEL.L "dur", BEL.R " minutes."] of
+        True -> pure ()
+        _ -> assertFailure $ show parted
 
--- rendered :: Aeson.Value <- BEL.render env (Aeson.String "") (BEL.partitions $ Text.pack s)
+test3 :: TestTree
+test3 = testCase "arith basic" $ do
+    let envNew :: BEL.Env = HM.fromList []
+
+    av <- BEL.eval envNew "2 * 1000"  -- PICKUP exprP body
+
+    case av of
+        Aeson.Number 2000 -> pure ()
+        _ -> assertFailure $ show av
+
+-- test4 :: TestTree
+-- test4 = testCase "arith complex" $ do
+    -- let envNew :: BEL.Env = HM.fromList [("kibi", Aeson.Number 1024)]
+    -- av <- BEL.eval envNew "2 * kibi"
+
+test5 :: TestTree
+test5 = testCase "bool literals" $ do
+    avTrue <-  BEL.eval HM.empty "true"
+    avFalse <- BEL.eval HM.empty "false"
+    case (avTrue, avFalse) of
+        (Aeson.Bool True, Aeson.Bool False) -> pure ()
+        got -> assertFailure $ show got
 
 -- ok
 -- main :: IO ()

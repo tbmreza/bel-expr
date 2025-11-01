@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE QuasiQuotes #-}
 
 module BEL
   ( Env
@@ -29,7 +30,7 @@ import qualified Data.Vector as Vec
 import           Data.Aeson as Aeson (encode)
 import qualified Data.Aeson.Types as Aeson (Value(..))
 import qualified Data.Aeson.JSONPath as Aeson (query)
--- import           Data.Aeson.QQ.Simple (aesonQQ)
+import           Data.Aeson.QQ.Simple (aesonQQ)
 -- import Data.Char (isAlphaNum)
 import qualified Text.Megaparsec.Char as C
 import           Text.Megaparsec ( Parsec, (<|>), some
@@ -57,7 +58,6 @@ _allowUnused = do
     let _ = varP
     let _ = lineP
     let _ = relP
-    let _ = needsEvalP'
     let _ = templateP
     let _ = asText
     let _ = (isPredicate, trimQuotesText, parseFloat)
@@ -136,6 +136,7 @@ parseFloat = parse (float <* eof) "<input>"
 type Env = HM.HashMap String Aeson.Value
 type Parser = Parsec Void Text
 
+-- `show (t :: Text)` does introduce double quote on both ends.
 show' :: Text -> String
 show' t = trimQuotes $ show t
     where
@@ -164,6 +165,8 @@ isPredicate e =
         Data (Aeson.Bool _) -> True
         _ -> False
 
+-- First assume that Aeson.Value here should distinct Aeson.Number and Aeson.String because
+-- `eval`ed text is stored to Env; might look throught it for arith.
 eval :: Env -> Text -> IO Aeson.Value
 eval env input = do
     trace ("exprP input:\t" ++ show input) $ case runParser exprP "" input of
@@ -200,7 +203,7 @@ data Expr
 -- body: jsonpath, bytes
 
 match :: Env -> Expr -> Expr
-match env = go  -- ??: find necessity for runExcept
+match env = trace ("match env:\t" ++ show env) go  -- ??: find necessity for runExcept
     where
     go :: Expr -> Expr
 
@@ -217,7 +220,10 @@ match env = go  -- ??: find necessity for runExcept
 
     -- Empty string if q not found in RESP_BODY.
     go (App (Fn "jsonpath") (Data (Aeson.String q))) =
-        let root :: Aeson.Value = (HM.lookupDefault (Aeson.String "hm") "RESP_BODY" env) in
+        let nest :: Aeson.Value = [aesonQQ| { "data": { "token": "abcdefghi9" } } |] in
+        -- ??: defaulting to nest is when mock doesn't provide valid json response
+        -- let root :: Aeson.Value = (HM.lookupDefault (Aeson.String "hm") "RESP_BODY" env) in
+        let root :: Aeson.Value = (HM.lookupDefault nest "RESP_BODY" env) in
         trace ("go:jsonpath\t" ++ (Text.unpack q) ++ "\nroot:\t" ++ show root) $ case queryBody (Text.unpack q) root of
             Nothing -> trace ("go:jsonpath:Nothing") (Data $ Aeson.String "")  -- ??: maybe due to space-prefixed q string
             Just one -> Data one
@@ -340,8 +346,8 @@ exprP = try $ do
           <|> trace "exprP 2" numEqNum
           <|> trace "exprP 3" bool
           <|> trace "exprP 4" invoc
-          <|> trace "exprP 5" word
-          <|> trace "exprP 6" jsonpathArg
+          <|> trace "exprP 5" jsonpathArg
+          <|> trace "exprP 6" word
     pure tokens
 
 templateP :: Parser [Segment]
@@ -353,31 +359,31 @@ templateP = do
 
 partsP :: Parser [Part]
 partsP = do
-    -- parts :: [Part] <- many ((try needsEvalP') <|> literalP)
-    -- pure parts
-    -- many ((try needsEvalP') <|> literalP)
+    -- parts :: [Part] <- many ((try needsEvalP) <|> literalP)
     many ((try needsEvalP) <|> literalP)
 
--- {{...}} variable (escaped) ??
-needsEvalP' :: Parser Part
-needsEvalP' = try $ do
-    _ <- C.string "{{"
-    sc
-    w <- wordP
-    sc
-    _ <- C.string "}}"
-    pure (L w)
-
+-- The L parser.
 needsEvalP :: Parser Part
 needsEvalP = try $ do
+    m <- mustachedP
+    pure (trace "am calledd" m)
+    -- _ <- C.string "{{"
+    -- sc
+    -- w <- textP
+    -- sc
+    -- _ <- C.string "}}"
+    -- pure (L w)
+
+mustachedP :: Parser Part
+mustachedP = try $ do
     _ <- C.string "{{"
     sc
     w <- textP
-    -- w <- wordP
     sc
     _ <- C.string "}}"
     pure (L w)
 
+-- The R parser.
 literalP :: Parser Part
 literalP = try $ do
     t <- takeWhile1P Nothing (/= '{')
@@ -386,7 +392,6 @@ literalP = try $ do
 asText :: Aeson.Value -> Text
 asText x = decodeUtf8 (ByteString.toStrict (Aeson.encode x))
 
--- render :: Aeson.Value -> [Arg] -> IO Aeson.Value
 -- render env (Aeson.String "paragraph so far") [Right "."]
 -- eval env "."
 -- impureRenderTemplate :: Env -> Text -> IO (Either String Text)
@@ -401,11 +406,6 @@ asText x = decodeUtf8 (ByteString.toStrict (Aeson.encode x))
 -- hello {{name}}
 -- hello {{firstname}} {{undefined}} !
 -- today()
---
--- render-template requires double brace on both ends
---    render({{eval( )}} and {{eval( )}})
---   frender(Aeson.Value, Text, Aeson.Value)
--- frender :: [Aeson.Value] -> Aeson.Value
 
 partitions :: Text -> [Part]
 partitions input =
