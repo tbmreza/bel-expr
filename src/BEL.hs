@@ -6,6 +6,8 @@ module BEL
   ( Env
   , partitions, Part(..)
   , eval, render
+  -- For testing:
+  , toExpr, Token(..), Expr(..), match, finalValue
   ) where
 
 import Debug.Trace
@@ -40,6 +42,7 @@ import           Text.Megaparsec ( Parsec, (<|>), some
                                  , takeWhile1P, ParseErrorBundle
                                  , parse
                                  , oneOf
+                                 , choice
                                  )
 
 import Control.Applicative (empty)
@@ -57,7 +60,6 @@ _allowUnused = do
     let _ = rawVarP
     let _ = varP
     let _ = lineP
-    let _ = relP
     let _ = templateP
     let _ = asText
     let _ = (isPredicate, trimQuotesText, parseFloat)
@@ -91,12 +93,12 @@ ioToday = do
 -- }
 
 toExpr :: Env -> [Token] -> IO Expr
-toExpr env [TIdentifier t] = trace "toExpr A" $ pure $ -- Not really an IO; just so asExpr don't require Env.
-    Data $ case HM.lookup (Text.unpack t) env of
-        Just v -> v
-        _ -> Aeson.String t
+-- toExpr env [TIdentifier t] = trace "toExpr A" $ pure $ -- Not really an IO; just so asExpr don't require Env.
+--     Data $ case HM.lookup (Text.unpack t) env of
+--         Just v -> v
+--         _ -> Aeson.String t
+-- toExpr env [TQuoted v1, TEq, TQuoted v2] = do Data $ Aeson.Bool (v1 == v2)
 toExpr _ [TIdentifier thunk, TParenOpn, TParenCls] = do
--- [TIdentifier thunk, TUnit] =
     tdy <- ioToday
     trace "toExpr B" $ pure $ case thunk of
         "today" -> Data $ Aeson.String (Text.pack tdy)
@@ -104,19 +106,89 @@ toExpr _ [TIdentifier thunk, TParenOpn, TParenCls] = do
         "dayOfMonth" -> Data $ Aeson.String "4"
         "loremIpsum" -> Data $ Aeson.String "lorem ipsum sit"  -- ??: 255 chars of lorem ipsum text
         _ -> Data $ Aeson.Null
-toExpr _env els = trace "toExpr C" $ pure $ asExpr els
+toExpr env els = trace "toExpr C" $ pure $ asExpr env els
 
 
-asExpr :: [Token] -> Expr
-asExpr [TBool v] = Data $ Aeson.Bool v
+asExpr :: Env -> [Token] -> Expr
+asExpr env [TIdentifier t] =
+    Data $ case HM.lookup (Text.unpack t) env of
+        Just v -> v
+        _ -> Aeson.String t
+asExpr _ [TBool v] = Data $ Aeson.Bool v
 -- asExpr [TNum v] = Data $ Aeson.Number v
-asExpr [TNum v1, TPlus, TNum v2] = Data $ Aeson.Number (fromFloatDigits $ v1 + v2)
-asExpr [TNum v1, TEq, TNum v2] = Eq (Data $ Aeson.Number (fromFloatDigits v1)) (Data $ Aeson.Number (fromFloatDigits v2))
-    where
-    _zz :: Scientific = 9
-asExpr [TJsonpath, TQuoted t] = App (Fn "jsonpath") (Data $ Aeson.String t)
-asExpr tokens = trace ("asExpr:" ++ show tokens) (Data $ Aeson.Null)
 
+asExpr env [TNum v1, TPlus, TIdentifier t] = 
+    let numOr0 = case HM.lookup (Text.unpack t) env of
+            Just (Aeson.Number n) -> n
+            _ -> 0 in
+    Num (numOr0 + fromFloatDigits v1)
+-- ??: for mul it's numOr1
+asExpr env [l@(TIdentifier _), TPlus, r@(TNum _)] = asExpr env [r, TPlus, l]
+
+asExpr _ [TNum v1, TPlus, TNum v2] = Data $ Aeson.Number (fromFloatDigits $ v1 + v2)
+asExpr _ [TNum v1, TMult, TNum v2] = Data $ Aeson.Number (fromFloatDigits $ v1 * v2)
+
+-- Eq (Data $ Aeson.String v1) (Data $ Aeson.String v2)
+
+asExpr env [TQuoted v1,     TEq, TQuoted v2] =     Data $ Aeson.Bool (v1 == v2)
+asExpr env [TQuoted v1,     TEq, TIdentifier v2] = asExpr env [TIdentifier v2, TEq, TQuoted v1]
+asExpr env [TIdentifier ti, TEq, TQuoted tq] =
+    case HM.lookup (Text.unpack ti) env of
+        Nothing -> Data $ Aeson.Bool False
+        Just v -> Data $ Aeson.Bool (v == Aeson.String tq)
+asExpr env [lhs@(TIdentifier _), TEq, rhs@(TIdentifier _)] =
+    Data $ Aeson.Bool (unrefEqual env (lhs, rhs))
+
+asExpr _ [TNum v1, TEq, TNum v2] = Eq (Data $ Aeson.Number (fromFloatDigits v1)) (Data $ Aeson.Number (fromFloatDigits v2))
+asExpr _ [TNum v1, TNeq, TNum v2] = Data $ Aeson.Bool (v1 /= v2)
+asExpr _ [TJsonpath, TQuoted t] = App (Fn "jsonpath") (Data $ Aeson.String t)
+
+-- The pratt parsing technique.
+asExpr env tokens = fst $ parseExpr tokens 0
+    where
+    parseExpr :: [Token] -> Int -> (Expr, [Token])
+    parseExpr toks minPrec = 
+      let (lhs, toks1) = parsePrimary toks
+      in parseExpr' lhs toks1 minPrec
+    
+    parseExpr' :: Expr -> [Token] -> Int -> (Expr, [Token])
+    parseExpr' lhs [] _ = (lhs, [])
+    parseExpr' lhs (op:rest) minPrec
+      | prec op >= minPrec =
+          let (rhs, rest') = parseExpr rest (prec op + 1)
+              lhs' = applyOp op lhs rhs
+          in parseExpr' lhs' rest' minPrec
+      | otherwise = (lhs, op:rest)
+    
+    parsePrimary :: [Token] -> (Expr, [Token])
+    parsePrimary (TNum n : rest) = (Data $ Aeson.Number (fromFloatDigits n), rest)
+    -- parsePrimary (TIdentifier x : rest) = (EVar x, rest)
+    -- ??
+    -- parsePrimary (TNum n : rest) = (ENum n, rest)
+    -- parsePrimary (TIdentifier x : rest) = (EVar x, rest)
+    parsePrimary _ = error "Expected primary expression"
+    
+    prec :: Token -> Int
+    prec TPlus = 1
+    prec TMinus = 1
+    prec TMult = 2
+    prec TDiv = 2
+    prec _ = 0
+    
+    applyOp :: Token -> Expr -> Expr -> Expr
+    applyOp TPlus  l r = Add l r
+    applyOp TMinus l r = Sub l r
+    applyOp TMult  l r = Mul l r
+    applyOp TDiv   l r = Div l r
+
+
+-- True iff both TIdentifier found and the values match.
+unrefEqual :: Env -> (Token, Token) -> Bool
+unrefEqual env ((TIdentifier varA), (TIdentifier varB)) =
+    case (HM.lookup (Text.unpack varA) env,
+          HM.lookup (Text.unpack varB) env) of
+        (Just v1, Just v2) -> v1 == v2
+        _ -> False
 
 
 -- Space consumer
@@ -166,7 +238,7 @@ isPredicate e =
         _ -> False
 
 -- First assume that Aeson.Value here should distinct Aeson.Number and Aeson.String because
--- `eval`ed text is stored to Env; might look throught it for arith.
+-- `eval`ed text is stored to Env; might look through it for arith.
 eval :: Env -> Text -> IO Aeson.Value
 eval env input = do
     trace ("exprP input:\t" ++ show input) $ case runParser exprP "" input of
@@ -184,17 +256,19 @@ finalValue env (Data x@(Aeson.String k)) =
         Nothing -> x)
 
 finalValue _ (Data final) = trace "eval:final not a string" final
-finalValue _ e = Aeson.String (Text.pack $ show e)
+finalValue _ (Num s) = Aeson.Number s
+finalValue _ e = trace "finalValue els" $ Aeson.String (Text.pack $ show e)
 
 data Expr
   = Data Aeson.Value
   | Fn   String
+  | Num  Scientific
 
   | Neg Expr
   | Eq  Expr Expr
   | Neq Expr Expr
 
-  | Add Expr Expr
+  | Add Expr Expr | Sub Expr Expr | Mul Expr Expr | Div Expr Expr
 
   | App Expr Expr
   deriving (Show, Eq)
@@ -208,6 +282,7 @@ match env = trace ("match env:\t" ++ show env) go  -- ??: find necessity for run
     go :: Expr -> Expr
 
     go final@(Data _) = final
+    go final@(Num _) = final  -- ??: as Aeson.Number always an option
 
     go (Neg (Data (Aeson.Bool b))) = Data (Aeson.Bool (not b))
     go (Neg e) = go (Neg (go e))
@@ -218,17 +293,47 @@ match env = trace ("match env:\t" ++ show env) go  -- ??: find necessity for run
 
     go (App (Fn "ident") arg@(Data _)) = arg
 
-    -- Empty string if q not found in RESP_BODY.
-    go (App (Fn "jsonpath") (Data (Aeson.String q))) =
-        let nest :: Aeson.Value = [aesonQQ| { "data": { "token": "abcdefghi9" } } |] in
-        -- ??: defaulting to nest is when mock doesn't provide valid json response
-        -- let root :: Aeson.Value = (HM.lookupDefault (Aeson.String "hm") "RESP_BODY" env) in
-        let root :: Aeson.Value = (HM.lookupDefault nest "RESP_BODY" env) in
-        trace ("go:jsonpath\t" ++ (Text.unpack q) ++ "\nroot:\t" ++ show root) $ case queryBody (Text.unpack q) root of
-            Nothing -> trace ("go:jsonpath:Nothing") (Data $ Aeson.String "")  -- ??: maybe due to space-prefixed q string
+    go (App (Fn "jsonpath") (Data (Aeson.String q))) =  -- ??: designate token for query arg (string; trimmed spaces)
+        let Just root :: Maybe Aeson.Value = (HM.lookup "RESP_BODY" env) in
+        case queryBody (Text.unpack q) root of
+            Nothing -> Data $ Aeson.String ""
             Just one -> Data one
 
+    -- -- Empty string if q not found in RESP_BODY.
+    -- go (App (Fn "jsonpath") (Data (Aeson.String q))) =
+    --     let nest :: Aeson.Value = [aesonQQ| { "data": { "token": "abcdefghi9" } } |] in
+    --     -- ??: defaulting to nest is when mock doesn't provide valid json response
+    --     -- let root :: Aeson.Value = (HM.lookupDefault (Aeson.String "hm") "RESP_BODY" env) in
+    --     let root :: Aeson.Value = (HM.lookupDefault nest "RESP_BODY" env) in
+    --     trace ("go:jsonpath\t" ++ (Text.unpack q) ++ "\nroot:\t" ++ show root) $ case queryBody (Text.unpack q) root of
+    --         Nothing -> trace ("go:jsonpath:Nothing") (Data $ Aeson.String "")  -- ??: maybe due to space-prefixed q string
+    --         Just one -> Data one
+
     go (App (Fn "today") _) = trace "go today:" (Data (Aeson.String "??"))
+
+    -- go (Add (Data (Aeson.Number v1)) (Data (Aeson.Number v2))) = Data $ Aeson.Number (v1 + v2)
+    -- go (Sub (Data (Aeson.Number v1)) (Data (Aeson.Number v2))) = Data $ Aeson.Number (v1 - v2)
+    -- go (Mul (Data (Aeson.Number v1)) (Data (Aeson.Number v2))) = Data $ Aeson.Number (v1 * v2)
+    -- go (Div (Data (Aeson.Number v1)) (Data (Aeson.Number v2))) = Data $ Aeson.Number (v1 / v2)
+
+-- go (Mul (Data (Aeson.Number v1)) (Data (Aeson.Number v2))) = Num (v1 * v2)
+
+    go (Add (Num v1) (Num v2)) = Num (v1 + v2)
+    -- go (Add (Num v1) e2) = go (Add (Num v1) (go e2))
+    -- go (Add e1 (Num v2)) = go (Add (Num v2) e1)
+    go (Add e1 e2) =       go (Add (go e1) (go e2))
+
+    go (Mul (Num v1) (Num v2)) = Num (v1 * v2)
+    -- go (Mul (Num v1) e2) = go (Mul (Num v1) (go e2))
+    -- go (Mul e1 (Num v2)) = go (Mul (Num v2) e1)
+    go (Mul e1 e2) =       go (Mul (go e1) (go e2))
+
+    go (Sub (Num v1) (Num v2)) = Num (v1 - v2)
+    go (Sub e1 e2) = go (Sub (go e1) (go e2))
+
+    go (Div (Num v1) (Num v2)) = Num (v1 / v2)
+    go (Div e1 e2) = go (Div (go e1) (go e2))
+
 
     go _ = undefined
 
@@ -288,13 +393,13 @@ data Token =
     TUnit
   | TBool Bool
   | TTrue | TFalse
-  | TEq | TNeq
+  | TEq | TNeq | TLte | TGte
   | TJsonpath
   | TIdentifier Text
   | TQuoted Text
   | TParenOpn | TParenCls
-  -- | TNum Scientific  -- ??: pro [Aeson] opp [parseFloat]
-  | TPlus
+  -- | TNum Scientific  -- ??: pro [Aeson] con [parseFloat]
+  | TPlus | TMinus | TMult | TDiv
   | TNum Double
   deriving (Show, Eq)
 
@@ -316,24 +421,100 @@ bool = try $ do
 tokenEq :: Parser Token
 tokenEq = try $ do
     sc
-    -- _ <- many (C.char ' ') -- `many` is zero or more.
     _ <- C.string "=="
     sc
     pure TEq
 
--- ?? or tokenNeq
-numEqNum :: Parser [Token]
-numEqNum = try $ do
+opP' :: Parser Token
+opP' = try $ do
+    sc
+    _ <- C.string "*"
+    sc
+    pure TMult
+
+-- prop expressions simplify to a bool.
+propP :: Parser [Token]
+propP = try $ do
+    lhs :: Double <- float  -- ??
+    sc
+    rel <- relP
+    sc
+    rhs :: Double <- float
+    pure [TNum lhs, rel, TNum rhs]
+
+relP :: Parser Token
+relP = choice
+  [ TNeq <$ C.string "!="
+  , TEq  <$ C.string "=="
+  , TLte <$ C.string "<="
+  , TGte <$ C.string ">="
+  ]
+
+arithP1 :: Parser [Token]
+arithP1 = try $ do
     num1 :: Double <- float
-    eq <- tokenEq
+    sc
+    op <- operatorP
+    sc
     num2 :: Double <- float
-    pure [TNum num1, eq, TNum num2]
+    pure [TNum num1, op, TNum num2]
+
+-- pratt or postfix whichever is cheaper/free. testing iface
+-- -- ?? integrate this
+-- import Text.Megaparsec.Expr
+--
+-- exprP :: Parser Expr
+-- exprP = makeExprParser termP operatorTable
+--   where
+--     termP = choice
+--       [ ENum <$> float
+--       , EVar <$> identifier
+--       , parens exprP
+--       ]
+--     
+--     operatorTable = 
+--       [ [ binary "*" EMul, binary "/" EDiv ]
+--       , [ binary "+" EAdd, binary "-" ESub ]
+--       ]
+--     
+--     binary name f = InfixL (f <$ symbol name)
+-- arithExprP :: Parser Expr
+
+
+
+-- arith expressions simplify to a number.
+arithP :: Parser [Token]
+arithP = do
+    first <- valueP
+    rest <- many $ do
+        sc
+        op <- operatorP
+        sc
+        val <- valueP
+        pure [op, val]
+    pure $ first : concat rest
+
+operatorP :: Parser Token
+operatorP = choice
+  [ TPlus  <$ C.char '+'
+  , TMinus <$ C.char '-'
+  , TMult  <$ C.char '*'
+  , TDiv   <$ C.char '/'
+  ]
+
+valueP :: Parser Token
+valueP = choice
+  [ TNum <$> try float
+  , TIdentifier <$> identifier
+  ]
+
 
 -- identifier (many arg)
 -- today()
 -- size(identifier)
-invoc :: Parser [Token]
-invoc = try $ do
+-- invocation expressions simplify to a value.
+invocationP :: Parser [Token]
+invocationP = try $ do
     fn :: Text <- identifier
     opn <- TParenOpn <$ C.char '('
     cls <- TParenCls <$ C.char ')'
@@ -342,13 +523,14 @@ invoc = try $ do
 exprP :: Parser [Token]
 exprP = try $ do
     sc
-    tokens <- trace "exprP 1" invocJsonpath
-          <|> trace "exprP 2" numEqNum
-          <|> trace "exprP 3" bool
-          <|> trace "exprP 4" invoc
-          <|> trace "exprP 5" jsonpathArg
-          <|> trace "exprP 6" word
-    pure tokens
+    trace     "exprP bool"          bool
+    <|> trace "exprP propP"         propP
+    <|> trace "exprP arithP"        arithP
+    <|> trace "exprP invocationP"   invocationP
+    -- <|> trace "exprP numEqNum"      numEqNum
+    <|> trace "exprP invocJsonpath" invocJsonpath 
+    <|> trace "exprP jsonpathArg"   jsonpathArg
+    <|> trace "exprP word"          word
 
 templateP :: Parser [Segment]
 templateP = do
@@ -436,10 +618,6 @@ render env (Aeson.String acc) ((L t):rest) = do
 render _ _ _ = undefined
 
 
--- impureRenderTemplate :: Env -> Text -> IO (Either String Text)
--- impureRenderTemplate env input = do
---     pure (Right "")
-
 identifier :: Parser Text
 identifier = do
     xs <- some $ C.alphaNumChar <|> C.char '_'
@@ -461,15 +639,15 @@ wordP = do
     pure (Text.pack xs)
 
 
-relP :: Parser Segment
-relP = try $ do
-  _ <- C.string "{{"
-  -- allow optional spaces inside
-  _ <- many (C.char ' ' <|> C.char '\t' <|> C.char '\n')
-  name <- wordP
-  _ <- many (C.char ' ' <|> C.char '\t' <|> C.char '\n')
-  _ <- C.string "}}"
-  pure (Var name)
+-- P :: Parser Segment
+-- P = try $ do
+--   _ <- C.string "{{"
+--   -- allow optional spaces inside
+--   _ <- many (C.char ' ' <|> C.char '\t' <|> C.char '\n')
+--   name <- wordP
+--   _ <- many (C.char ' ' <|> C.char '\t' <|> C.char '\n')
+--   _ <- C.string "}}"
+--   pure (Var name)
 
 lineP :: Parser Segment
 lineP = try $ do
