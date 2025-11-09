@@ -242,7 +242,8 @@ isPredicate e =
 eval :: Env -> Text -> IO Aeson.Value
 eval env input = do
     trace ("exprP input:\t" ++ show input) $ case runParser exprP "" input of
-        Left _ -> pure $ Aeson.String input
+        -- Left _ -> pure $ Aeson.String input
+        Left _ -> trace "you're dead" $ pure $ Aeson.String input
         Right (tokens :: [Token]) -> do
             e <- toExpr env (trace ("tokens:\t" ++ show tokens) tokens)
             pure $ (trace ("match input:\t" ++ show e) $ finalValue env (match env e))
@@ -413,10 +414,17 @@ tokenFalse = try $ do
     _ <- C.string "false"
     pure $ TBool False
 
-bool :: Parser [Token]
-bool = try $ do
-    b <- tokenFalse <|> tokenTrue
-    pure [b]
+-- bool :: Parser [Token]
+-- bool = trace "bool entry.." $ try $ do
+--     b <- tokenFalse <|> tokenTrue
+--     trace "bool exit.." $ pure [b]
+
+boolP :: Parser Token
+boolP = choice
+  [ (TBool False) <$ C.string "false"
+  , (TBool True)  <$ C.string "true"
+  ]
+
 
 tokenEq :: Parser Token
 tokenEq = try $ do
@@ -434,13 +442,14 @@ opP' = try $ do
 
 -- prop expressions simplify to a bool.
 propP :: Parser [Token]
-propP = try $ do
-    lhs :: Double <- float  -- ??
-    sc
-    rel <- relP
-    sc
-    rhs :: Double <- float
-    pure [TNum lhs, rel, TNum rhs]
+propP = trace "propP entry.." $ try $ do
+    lhs :: Double <- (trace "1..." float)  -- ??
+    (trace "2..." sc)
+    rel <- (trace "3.." relP)
+    (trace "4.." sc)
+    rhs :: Double <- (trace "5..." float)
+    -- pure [TNum lhs, rel, TNum rhs]
+    pure (trace "propP exit.." [TNum lhs, rel, TNum rhs])
 
 relP :: Parser Token
 relP = choice
@@ -450,14 +459,14 @@ relP = choice
   , TGte <$ C.string ">="
   ]
 
-arithP1 :: Parser [Token]
-arithP1 = try $ do
-    num1 :: Double <- float
-    sc
-    op <- operatorP
-    sc
-    num2 :: Double <- float
-    pure [TNum num1, op, TNum num2]
+-- arithP1 :: Parser [Token]
+-- arithP1 = try $ do
+--     num1 :: Double <- float
+--     sc
+--     op <- operatorP
+--     sc
+--     num2 :: Double <- float
+--     pure [TNum num1, op, TNum num2]
 
 -- pratt or postfix whichever is cheaper/free. testing iface
 -- -- ?? integrate this
@@ -484,7 +493,8 @@ arithP1 = try $ do
 
 -- arith expressions simplify to a number.
 arithP :: Parser [Token]
-arithP = do
+arithP = trace "arithP entry.." $ try $ do
+    sc
     first <- valueP
     rest <- many $ do
         sc
@@ -514,7 +524,7 @@ valueP = choice
 -- size(identifier)
 -- invocation expressions simplify to a value.
 invocationP :: Parser [Token]
-invocationP = try $ do
+invocationP = trace "invocationP entry.." $ try $ do
     fn :: Text <- identifier
     opn <- TParenOpn <$ C.char '('
     cls <- TParenCls <$ C.char ')'
@@ -522,9 +532,9 @@ invocationP = try $ do
 
 exprP :: Parser [Token]
 exprP = try $ do
-    sc
-    trace     "exprP bool"          bool
-    <|> trace "exprP propP"         propP
+    -- sc
+    -- trace     "exprP bool"          bool
+    trace "exprP propP"         propP
     <|> trace "exprP arithP"        arithP
     <|> trace "exprP invocationP"   invocationP
     -- <|> trace "exprP numEqNum"      numEqNum

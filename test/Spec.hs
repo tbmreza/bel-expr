@@ -24,18 +24,18 @@ import BEL
 
 main :: IO ()
 main = defaultMain $ testGroup "Happy tests"
-  -- [ test6 ]
+  [ test1 ]
 
-  [ test0
-  , test1
-  , test2
-  , test3
-  , test4
-  , test5
-  , test6
-  , test7
-  , test8
-  ]
+  -- [ test0
+  -- -- , test1
+  -- , test2
+  -- , test3
+  -- , test4
+  -- -- , test5
+  -- , test6
+  -- , test7
+  -- , test8
+  -- ]
 
 
 
@@ -103,7 +103,12 @@ test0 = testCase "valid bel program" $ do
 
 test1 :: TestTree
 test1 = testCase "" $ do
-    pure ()
+    let envNew :: BEL.Env = HM.fromList [("margin", Aeson.Number 3)]
+
+    av1 <- BEL.eval envNew " 2"
+    assertFailure $ show av1
+    -- pure ()
+
     -- let root :: Aeson.Value = [aesonQQ| { "data": { "token": "abcdefghi9" } } |]
     -- let envNew :: BEL.Env = HM.fromList [("year", Aeson.String "2025"), ("RESP_BODY", root)]
     --
