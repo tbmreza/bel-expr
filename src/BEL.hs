@@ -441,15 +441,30 @@ opP' = try $ do
     pure TMult
 
 -- prop expressions simplify to a bool.
+
+oldP :: Parser [Token]
+-- oldP = try $ do
+oldP = do
+    lhs :: Double <- float
+    sc
+    rel <- relP
+    sc
+    rhs :: Double <- float
+    pure [TNum lhs, rel, TNum rhs]
+
 propP :: Parser [Token]
-propP = trace "propP entry.." $ try $ do
-    lhs :: Double <- (trace "1..." float)  -- ??
-    (trace "2..." sc)
-    rel <- (trace "3.." relP)
-    (trace "4.." sc)
-    rhs :: Double <- (trace "5..." float)
-    -- pure [TNum lhs, rel, TNum rhs]
-    pure (trace "propP exit.." [TNum lhs, rel, TNum rhs])
+propP =
+    (:[]) <$> boolP
+    <|> relExprP
+
+relExprP :: Parser [Token]
+relExprP = try $ do
+    v1 <- valueP
+    sc
+    op <- relP
+    sc
+    v2 <- valueP
+    pure [v1, op, v2]
 
 relP :: Parser Token
 relP = choice
@@ -533,7 +548,6 @@ invocationP = trace "invocationP entry.." $ try $ do
 exprP :: Parser [Token]
 exprP = try $ do
     -- sc
-    -- trace     "exprP bool"          bool
     trace "exprP propP"         propP
     <|> trace "exprP arithP"        arithP
     <|> trace "exprP invocationP"   invocationP

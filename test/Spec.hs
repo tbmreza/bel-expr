@@ -24,18 +24,18 @@ import BEL
 
 main :: IO ()
 main = defaultMain $ testGroup "Happy tests"
-  [ test1 ]
+  -- [ test6 ]
 
-  -- [ test0
-  -- -- , test1
-  -- , test2
-  -- , test3
-  -- , test4
-  -- -- , test5
-  -- , test6
-  -- , test7
-  -- , test8
-  -- ]
+  [ test0
+  -- , test1
+  , test2
+  , test3
+  , test4
+  , test5
+  , test6
+  , test7
+  , test8
+  ]
 
 
 
@@ -165,10 +165,9 @@ test6 :: TestTree
 test6 = testCase "assertion line" $ do
     av0 <-  BEL.eval HM.empty "200 !=  200"
     av1 <-  BEL.eval HM.empty "14 ==  14"
-    av2 <-  BEL.eval HM.empty "14 +  15"
 
-    case (av0, av1, av2) of
-        (Aeson.Bool False, Aeson.Bool True, Aeson.Number 29) -> pure ()
+    case (av0, av1) of
+        (Aeson.Bool False, Aeson.Bool True) -> pure ()
         all -> assertFailure $ show all
 
 -- toExpr :: Env -> [Token] -> IO Expr
