@@ -24,7 +24,7 @@ import BEL
 
 main :: IO ()
 main = defaultMain $ testGroup "Happy tests"
-  -- [ test6 ]
+  -- [ test1 ]
 
   [ test0
   -- , test1
@@ -102,12 +102,15 @@ test0 = testCase "valid bel program" $ do
         _ -> assertFailure $ show parted
 
 test1 :: TestTree
-test1 = testCase "" $ do
-    let envNew :: BEL.Env = HM.fromList [("margin", Aeson.Number 3)]
+test1 = testCase "render url parts" $ do
+    let envNew :: BEL.Env = HM.fromList [("CAT", Aeson.String "animals")]
 
-    av1 <- BEL.eval envNew " 2"
-    assertFailure $ show av1
-    -- pure ()
+    -- all <- BEL.render envNew (Aeson.String "") (BEL.partitions "https://kernel.org/{{CAT}}/route.php?prefilt=9&lim={{10 * 2}}&filt=another")
+    -- PICKUP
+    all <- BEL.render envNew (Aeson.String "") (BEL.partitions "{{10 * 2}}")
+    -- all <- BEL.render envNew (Aeson.String "") (BEL.partitions "{{100}}")
+    -- all <- BEL.render envNew (Aeson.String "") (BEL.partitions "https://kernel.org/{{CAT}}/route.php?prefilt=9&lim={{10}}&filt=another")
+    assertFailure $ show all
 
     -- let root :: Aeson.Value = [aesonQQ| { "data": { "token": "abcdefghi9" } } |]
     -- let envNew :: BEL.Env = HM.fromList [("year", Aeson.String "2025"), ("RESP_BODY", root)]

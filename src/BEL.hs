@@ -36,8 +36,9 @@ import           Data.Aeson.QQ.Simple (aesonQQ)
 -- import Data.Char (isAlphaNum)
 import qualified Text.Megaparsec.Char as C
 import           Text.Megaparsec ( Parsec, (<|>), some
-                                 -- , anySingle, choice, getInput, manyTill, lookAhead
-                                 , many
+                                 , anySingle
+                                 -- choice, getInput, manyTill, lookAhead
+                                 , many, manyTill
                                  , try, eof, runParser
                                  , takeWhile1P, ParseErrorBundle
                                  , parse
@@ -565,35 +566,20 @@ templateP = do
 
 partsP :: Parser [Part]
 partsP = do
-    -- parts :: [Part] <- many ((try needsEvalP) <|> literalP)
     many ((try needsEvalP) <|> literalP)
-
--- The L parser.
-needsEvalP :: Parser Part
-needsEvalP = try $ do
-    m <- mustachedP
-    pure (trace "am calledd" m)
-    -- _ <- C.string "{{"
-    -- sc
-    -- w <- textP
-    -- sc
-    -- _ <- C.string "}}"
-    -- pure (L w)
-
-mustachedP :: Parser Part
-mustachedP = try $ do
-    _ <- C.string "{{"
-    sc
-    w <- textP
-    sc
-    _ <- C.string "}}"
-    pure (L w)
 
 -- The R parser.
 literalP :: Parser Part
 literalP = try $ do
-    t <- takeWhile1P Nothing (/= '{')
+    t <- takeWhile1P Nothing (/= '{')  -- ??: test user escape open curly
     pure (R t)
+
+-- The L parser.
+needsEvalP :: Parser Part
+needsEvalP = try $ do
+    _ <- C.string "{{"
+    w <- manyTill anySingle (C.string "}}")
+    pure (L $ Text.pack w)
 
 asText :: Aeson.Value -> Text
 asText x = decodeUtf8 (ByteString.toStrict (Aeson.encode x))
@@ -632,9 +618,10 @@ render env (Aeson.String acc) ((R t):rest) =
 render env (Aeson.String acc) ((L t):rest) = do
     evaled :: Aeson.Value <- eval env t
 
-    let str = case evaled of
+    let str = case (trace ("evaled:\t" ++ show evaled) evaled) of
             Aeson.String txt -> show' txt
             Aeson.Object obj -> show obj
+            Aeson.Number n -> show n  -- ??: present point zero as (show n)[:-2]
             _ -> ("unhandled render L" :: String)
 
     render env (Aeson.String $ Text.concat [acc, Text.pack str]) rest
