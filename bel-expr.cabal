@@ -25,6 +25,7 @@ source-repository head
 
 library
   exposed-modules:
+      BEL.BatteriesMain
       BEL
   other-modules:
       Paths_bel_expr

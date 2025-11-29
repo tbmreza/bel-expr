@@ -48,6 +48,9 @@ ghc-options:
 
 library:
   source-dirs: src
+  exposed-modules:
+  - BEL.BatteriesMain
+  - BEL
 
 executables:
   bel-expr-exe:

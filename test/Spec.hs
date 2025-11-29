@@ -24,74 +24,20 @@ import BEL
 
 main :: IO ()
 main = defaultMain $ testGroup "Happy tests"
-  -- [ test1 ]
+  [ test1 ]
 
-  [ test0
+  -- [ test0
   -- , test1
-  , test2
-  , test3
-  , test4
-  , test5
-  , test6
-  , test7
-  , test8
-  ]
+  -- , test2
+  -- , test3
+  -- , test4
+  -- , test5
+  -- , test6
+  -- , test7
+  -- , test8
+  -- ]
 
 
-
--- main :: IO ()
--- main = do
---     let envNew :: Env = HM.fromList [("yyyymmdd", Aeson.String "19700101"), ("year", Aeson.String "2025")]
---     case renderAesonTemplate envNew (Aeson.String "{{today}}") of
---         _ -> putStrLn "atas"
---
---     -- case renderTemplate envNew "http://localhost:9999/path{{yyyymmdd}}tail" of
---     case renderTemplate envNew "aa{{today}}bbb" of  -- ok templateP1
---     -- case renderTemplate envNew "{ "start": "{{today}}" }" of
---     -- case renderTemplate envNew "{{year}}betw{{yyyymmdd}}" of
---         Left res -> putStrLn res
---         Right res -> putStrLn res
-
--- # jsonpath "$.data.name" == "alice"
-
--- main :: IO ()
--- main = do
---     -- let e = App (Fn "ident") (Data (Aeson.String "Alice"))
---     let e = App (Fn "today") (Data (Aeson.String "()"))
---     -- let e = App (Fn "jsonpath") (Data (Aeson.String "$.data"))
---     -- let e = Data (Aeson.String "Alice")
---     -- let e = Neq (Data (Aeson.Number 14)) (Data (Aeson.Number 12))
---     -- let e = Neg (Data $ Aeson.Bool False)
---     -- putStrLn $ show $ isPredicate (match e)
---     putStrLn $ show $ (match e)
-
--- main :: IO ()
--- main = do
---     -- res <- parseTest litP "hello()"
---     res <- parseTest templateP "hello(){{today()}}bb"
---     let envNew :: Env = HM.fromList [("yyyymmdd", Aeson.String "19700101"), ("year", Aeson.String "2025")]
---     -- ok templateP1
---     -- case renderTemplate envNew "aa{{today}}bbb" of
---     -- case renderTemplate envNew "12 != 12" of
---     -- case renderTemplate envNew "true" of
---     case renderTemplate envNew "today()" of
---         Left id -> putStrLn id
---         Right res -> putStrLn res
-
-
-
--- -- ok
--- main :: IO ()
--- main = do
---     let root :: Aeson.Value = [aesonQQ| { "data": { "token": "abcdefghi9" } } |]
---     let envNew :: Env = HM.fromList [("year", Aeson.String "2025"), ("RESP_BODY", root)]
---
---     -- ok:
---     -- res <- render envNew (Aeson.String "") (partitions "  {{year}}  another sen {{year}} tence")
---     -- res <- render envNew (Aeson.String "") (partitions "{ \"user\": 12 }")
---     -- res <- render envNew (Aeson.String "") (partitions "jsonpath \"$.data\"")
---     let parted = partitions "{{jsonpath \"$.data\"}}"  -- expect L "jsonpath \"$.data\""
---     putStrLn $ show parted
 
 test0 :: TestTree
 test0 = testCase "valid bel program" $ do
@@ -105,24 +51,13 @@ test1 :: TestTree
 test1 = testCase "render url parts" $ do
     let envNew :: BEL.Env = HM.fromList [("CAT", Aeson.String "animals")]
 
-    -- all <- BEL.render envNew (Aeson.String "") (BEL.partitions "https://kernel.org/{{CAT}}/route.php?prefilt=9&lim={{10 * 2}}&filt=another")
-    -- PICKUP
-    all <- BEL.render envNew (Aeson.String "") (BEL.partitions "{{10 * 2}}")
-    -- all <- BEL.render envNew (Aeson.String "") (BEL.partitions "{{100}}")
-    -- all <- BEL.render envNew (Aeson.String "") (BEL.partitions "https://kernel.org/{{CAT}}/route.php?prefilt=9&lim={{10}}&filt=another")
-    assertFailure $ show all
+    av1 <- BEL.render envNew (Aeson.String "") (BEL.partitions "{{10 * 2}}")
+    av2 <- BEL.render envNew (Aeson.String "") (BEL.partitions "score {{100}}")
+    av3 <- BEL.render envNew (Aeson.String "") (BEL.partitions "https://kernel.org/{{CAT}}/route.php?prefilt=9&lim={{10}}&filt=another")
 
-    -- let root :: Aeson.Value = [aesonQQ| { "data": { "token": "abcdefghi9" } } |]
-    -- let envNew :: BEL.Env = HM.fromList [("year", Aeson.String "2025"), ("RESP_BODY", root)]
-    --
-    -- avPositive <- BEL.render envNew (Aeson.String "") (BEL.partitions "{{jsonpath \"$.data.token\"}}")
-    -- -- avNegative <- BEL.render envNew (Aeson.String "") (BEL.partitions "{{jsonpath \"$.data.doesntexist\"}}")
-    --
-    -- assertFailure $ show avPositive
-    --
-    -- -- case (avPositive, avNegative) of
-    -- --     (Aeson.String "abcdefghi9", Aeson.String "") -> pure ()
-    -- --     all -> assertFailure $ show all
+    case (av1, av2, av3) of
+        (Aeson.String "20.0", Aeson.String "score 100.0", Aeson.String "https://kernel.org/animals/route.php?prefilt=9&lim=10.0&filt=another") -> pure ()
+        all -> assertFailure $ show all
 
 test2 :: TestTree
 test2 = testCase "partition sentence" $ do
@@ -132,6 +67,7 @@ test2 = testCase "partition sentence" $ do
         True -> pure ()
         _ -> assertFailure $ show parted
 
+-- ??: testN pratt arith
 test3 :: TestTree
 test3 = testCase "arith basic" $ do
     let envNew :: BEL.Env = HM.fromList [("margin", Aeson.Number 3)]
@@ -173,9 +109,6 @@ test6 = testCase "assertion line" $ do
         (Aeson.Bool False, Aeson.Bool True) -> pure ()
         all -> assertFailure $ show all
 
--- toExpr :: Env -> [Token] -> IO Expr
-    -- let envNew = HM.fromList [("const", Aeson.String "several words with spaces")]
-    -- e <- BEL.toExpr envNew [TIdentifier "const", TEq, TQuoted "several words with spaces"]
 test7 :: TestTree
 test7 = testCase "toExpr unit" $ do
     let envNew = HM.fromList [("nama", Aeson.String "contents")]

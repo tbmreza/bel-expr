@@ -13,12 +13,14 @@ module BEL
 import Debug.Trace
 
 
-import           System.Random (randomR, mkStdGen)
-import Data.Time (Day, fromGregorian)
-import Data.Time.Format (formatTime, defaultTimeLocale)
+-- import           System.Random (randomR, mkStdGen)
+-- import Data.Time (Day, fromGregorian)
+-- import Data.Time.Format (formatTime, defaultTimeLocale)
 -- import Data.Time.Clock (getCurrentTime)
-import Data.Time.Clock
+-- import Data.Time.Clock
 -- import Text.Regex.Posix ((=~))
+
+import BEL.BatteriesMain
 
 
 -- import           Data.Either
@@ -37,7 +39,7 @@ import           Data.Aeson.QQ.Simple (aesonQQ)
 import qualified Text.Megaparsec.Char as C
 import           Text.Megaparsec ( Parsec, (<|>), some
                                  , anySingle
-                                 -- choice, getInput, manyTill, lookAhead
+                                 -- , MonadParsec
                                  , many, manyTill
                                  , try, eof, runParser
                                  , takeWhile1P, ParseErrorBundle
@@ -50,11 +52,6 @@ import Control.Applicative (empty)
 import qualified Text.Megaparsec.Char.Lexer as L
 import Data.Scientific (Scientific, fromFloatDigits)
 
-_unusedBatteries :: IO ()
-_unusedBatteries = do
-    let _ = (isoDate, exampleDay, pureRandomInt)
-    pure ()
-
 _allowUnused :: IO ()
 _allowUnused = do
     let _ = litP
@@ -63,67 +60,42 @@ _allowUnused = do
     let _ = lineP
     let _ = templateP
     let _ = asText
-    let _ = (isPredicate, trimQuotesText, parseFloat)
+    let _ = (isPredicate, trimQuotesText, textP, oldP, opP', tokenEq, tokenFalse, tokenTrue, parseFloat, aesonQQ)
     pure ()
 
--- Battery {
-
-pureRandomInt :: Int -> Int -> Int -> Int
-pureRandomInt seed minVal maxVal =
-    let gen = mkStdGen seed
-        (val, _) = randomR (minVal, maxVal) gen
-    in val
-
-formatISODate :: Day -> String
-formatISODate day = formatTime defaultTimeLocale "%Y-%m-%d" day
-
-exampleDay :: Day
-exampleDay = fromGregorian 2025 9 18
-
-isoDate :: String
-isoDate = formatISODate exampleDay
-
-
-ioToday :: IO String
-ioToday = do
-    t <- getCurrentTime
-    -- pure $ formatISODate exampleDay
-    pure $ formatISODate (utctDay t)
-
-
--- }
-
 toExpr :: Env -> [Token] -> IO Expr
--- toExpr env [TIdentifier t] = trace "toExpr A" $ pure $ -- Not really an IO; just so asExpr don't require Env.
---     Data $ case HM.lookup (Text.unpack t) env of
---         Just v -> v
---         _ -> Aeson.String t
--- toExpr env [TQuoted v1, TEq, TQuoted v2] = do Data $ Aeson.Bool (v1 == v2)
-toExpr _ [TIdentifier thunk, TParenOpn, TParenCls] = do
+
+toExpr _env [TIdentifier thunk, TParenOpn, TParenCls] = do
     tdy <- ioToday
-    trace "toExpr B" $ pure $ case thunk of
+    pure $ case thunk of
         "today" -> Data $ Aeson.String (Text.pack tdy)
         "year" -> Data $ Aeson.String "2025"
         "dayOfMonth" -> Data $ Aeson.String "4"
-        "loremIpsum" -> Data $ Aeson.String "lorem ipsum sit"  -- ??: 255 chars of lorem ipsum text
+        "loremIpsum 5" -> Data $ Aeson.String $ Text.pack $ loremChars 5  -- ??: thunks in scanner
         _ -> Data $ Aeson.Null
+
 toExpr env els = trace "toExpr C" $ pure $ asExpr env els
 
-
+-- ??: document if warnings for fallback values are desirable
 asExpr :: Env -> [Token] -> Expr
 asExpr env [TIdentifier t] =
     Data $ case HM.lookup (Text.unpack t) env of
         Just v -> v
         _ -> Aeson.String t
 asExpr _ [TBool v] = Data $ Aeson.Bool v
--- asExpr [TNum v] = Data $ Aeson.Number v
+
+asExpr env [TNum v1, TMult, TIdentifier t] = 
+    let numOr1 = case HM.lookup (Text.unpack t) env of
+            Just (Aeson.Number n) -> n
+            _ -> 1 in
+    Num (numOr1 * fromFloatDigits v1)
 
 asExpr env [TNum v1, TPlus, TIdentifier t] = 
     let numOr0 = case HM.lookup (Text.unpack t) env of
             Just (Aeson.Number n) -> n
             _ -> 0 in
     Num (numOr0 + fromFloatDigits v1)
--- ??: for mul it's numOr1
+
 asExpr env [l@(TIdentifier _), TPlus, r@(TNum _)] = asExpr env [r, TPlus, l]
 
 asExpr _ [TNum v1, TPlus, TNum v2] = Data $ Aeson.Number (fromFloatDigits $ v1 + v2)
@@ -131,7 +103,7 @@ asExpr _ [TNum v1, TMult, TNum v2] = Data $ Aeson.Number (fromFloatDigits $ v1 *
 
 -- Eq (Data $ Aeson.String v1) (Data $ Aeson.String v2)
 
-asExpr env [TQuoted v1,     TEq, TQuoted v2] =     Data $ Aeson.Bool (v1 == v2)
+asExpr _ [TQuoted v1,     TEq, TQuoted v2] =     Data $ Aeson.Bool (v1 == v2)
 asExpr env [TQuoted v1,     TEq, TIdentifier v2] = asExpr env [TIdentifier v2, TEq, TQuoted v1]
 asExpr env [TIdentifier ti, TEq, TQuoted tq] =
     case HM.lookup (Text.unpack ti) env of
@@ -145,7 +117,7 @@ asExpr _ [TNum v1, TNeq, TNum v2] = Data $ Aeson.Bool (v1 /= v2)
 asExpr _ [TJsonpath, TQuoted t] = App (Fn "jsonpath") (Data $ Aeson.String t)
 
 -- The pratt parsing technique.
-asExpr env tokens = fst $ parseExpr tokens 0
+asExpr _env tokens = fst $ parseExpr tokens 0
     where
     parseExpr :: [Token] -> Int -> (Expr, [Token])
     parseExpr toks minPrec = 
@@ -181,6 +153,7 @@ asExpr env tokens = fst $ parseExpr tokens 0
     applyOp TMinus l r = Sub l r
     applyOp TMult  l r = Mul l r
     applyOp TDiv   l r = Div l r
+    applyOp _ _ _ = undefined
 
 
 -- True iff both TIdentifier found and the values match.
@@ -190,21 +163,22 @@ unrefEqual env ((TIdentifier varA), (TIdentifier varB)) =
           HM.lookup (Text.unpack varB) env) of
         (Just v1, Just v2) -> v1 == v2
         _ -> False
+unrefEqual _ _ = undefined
 
 
 -- Space consumer
 sc :: Parser ()
 sc = L.space C.space1 empty empty
 
--- ??: suppress fromIntegral type-defaults warning
 float :: Parser Double
-float = L.signed sc (try L.float <|> fmap fromIntegral L.decimal)
+float = do
+    L.signed sc (try L.float <|> fmap fromIntegral (L.decimal :: Parser Integer))
 
 parseFloat :: Text -> Either (ParseErrorBundle Text Void) Double
 parseFloat = parse (float <* eof) "<input>"
 
 
--- ??: can we avoid duplication of Env type defs using typeclasses sig or whatnot
+-- PICKUP can we avoid duplication of Env type defs using typeclasses sig or whatnot
 -- type Env = HM.HashMap Text Aeson.Value
 type Env = HM.HashMap String Aeson.Value
 type Parser = Parsec Void Text
@@ -284,7 +258,7 @@ match env = trace ("match env:\t" ++ show env) go  -- ??: find necessity for run
     go :: Expr -> Expr
 
     go final@(Data _) = final
-    go final@(Num _) = final  -- ??: as Aeson.Number always an option
+    go final@(Num _) = final
 
     go (Neg (Data (Aeson.Bool b))) = Data (Aeson.Bool (not b))
     go (Neg e) = go (Neg (go e))
@@ -296,10 +270,15 @@ match env = trace ("match env:\t" ++ show env) go  -- ??: find necessity for run
     go (App (Fn "ident") arg@(Data _)) = arg
 
     go (App (Fn "jsonpath") (Data (Aeson.String q))) =  -- ??: designate token for query arg (string; trimmed spaces)
-        let Just root :: Maybe Aeson.Value = (HM.lookup "RESP_BODY" env) in
-        case queryBody (Text.unpack q) root of
-            Nothing -> Data $ Aeson.String ""
-            Just one -> Data one
+        case HM.lookup "RESP_BODY" env of
+            Nothing -> undefined
+            Just root -> case queryBody (Text.unpack q) root of
+                Nothing -> Data $ Aeson.String ""
+                Just one -> Data one
+        -- let Just root :: Maybe Aeson.Value = (HM.lookup "RESP_BODY" env) in
+        -- case queryBody (Text.unpack q) root of
+        --     Nothing -> Data $ Aeson.String ""
+        --     Just one -> Data one
 
     -- -- Empty string if q not found in RESP_BODY.
     -- go (App (Fn "jsonpath") (Data (Aeson.String q))) =
@@ -308,10 +287,10 @@ match env = trace ("match env:\t" ++ show env) go  -- ??: find necessity for run
     --     -- let root :: Aeson.Value = (HM.lookupDefault (Aeson.String "hm") "RESP_BODY" env) in
     --     let root :: Aeson.Value = (HM.lookupDefault nest "RESP_BODY" env) in
     --     trace ("go:jsonpath\t" ++ (Text.unpack q) ++ "\nroot:\t" ++ show root) $ case queryBody (Text.unpack q) root of
-    --         Nothing -> trace ("go:jsonpath:Nothing") (Data $ Aeson.String "")  -- ??: maybe due to space-prefixed q string
+    --         Nothing -> trace ("go:jsonpath:Nothing") (Data $ Aeson.String "")
     --         Just one -> Data one
 
-    go (App (Fn "today") _) = trace "go today:" (Data (Aeson.String "??"))
+    go (App (Fn "today") _) = trace "go today:" (Data (Aeson.String "?? merge thunks"))
 
     -- go (Add (Data (Aeson.Number v1)) (Data (Aeson.Number v2))) = Data $ Aeson.Number (v1 + v2)
     -- go (Sub (Data (Aeson.Number v1)) (Data (Aeson.Number v2))) = Data $ Aeson.Number (v1 - v2)
@@ -365,7 +344,7 @@ invocJsonpath = try $ do
     [quoted] <- jsonpathArg
     pure [TJsonpath, quoted]
 
--- Expect one matching Value or ??log.
+-- Expect one matching Value.
 queryBody :: String -> Aeson.Value -> Maybe Aeson.Value
 queryBody q root =
     case Aeson.query q root of
@@ -475,38 +454,6 @@ relP = choice
   , TGte <$ C.string ">="
   ]
 
--- arithP1 :: Parser [Token]
--- arithP1 = try $ do
---     num1 :: Double <- float
---     sc
---     op <- operatorP
---     sc
---     num2 :: Double <- float
---     pure [TNum num1, op, TNum num2]
-
--- pratt or postfix whichever is cheaper/free. testing iface
--- -- ?? integrate this
--- import Text.Megaparsec.Expr
---
--- exprP :: Parser Expr
--- exprP = makeExprParser termP operatorTable
---   where
---     termP = choice
---       [ ENum <$> float
---       , EVar <$> identifier
---       , parens exprP
---       ]
---     
---     operatorTable = 
---       [ [ binary "*" EMul, binary "/" EDiv ]
---       , [ binary "+" EAdd, binary "-" ESub ]
---       ]
---     
---     binary name f = InfixL (f <$ symbol name)
--- arithExprP :: Parser Expr
-
-
-
 -- arith expressions simplify to a number.
 arithP :: Parser [Token]
 arithP = trace "arithP entry.." $ try $ do
@@ -601,7 +548,7 @@ asText x = decodeUtf8 (ByteString.toStrict (Aeson.encode x))
 
 partitions :: Text -> [Part]
 partitions input =
-    case runParser partsP "??: unused?" input of
+    case runParser partsP "" input of
         Left _ -> trace "partitions 0" [R input]
         Right [] -> trace "partitions A" [R input]
         Right parts -> trace "partitions B" parts
@@ -624,7 +571,8 @@ render env (Aeson.String acc) ((L t):rest) = do
             Aeson.Number n -> show n  -- ??: present point zero as (show n)[:-2]
             _ -> ("unhandled render L" :: String)
 
-    render env (Aeson.String $ Text.concat [acc, Text.pack str]) rest
+    let ss :: Aeson.Value = Aeson.String $ Text.concat [acc, Text.pack str]
+    render env (trace ("ss:\t" ++ show ss) ss) rest
 
 render _ _ _ = undefined
 
@@ -648,17 +596,6 @@ wordP :: Parser Text
 wordP = do
     xs <- some $ C.alphaNumChar <|> C.char '_' <|> C.char '.' <|> C.char '(' <|> C.char ')'
     pure (Text.pack xs)
-
-
--- P :: Parser Segment
--- P = try $ do
---   _ <- C.string "{{"
---   -- allow optional spaces inside
---   _ <- many (C.char ' ' <|> C.char '\t' <|> C.char '\n')
---   name <- wordP
---   _ <- many (C.char ' ' <|> C.char '\t' <|> C.char '\n')
---   _ <- C.string "}}"
---   pure (Var name)
 
 lineP :: Parser Segment
 lineP = try $ do
