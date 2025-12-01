@@ -52,6 +52,8 @@ import Control.Applicative (empty)
 import qualified Text.Megaparsec.Char.Lexer as L
 import Data.Scientific (Scientific, fromFloatDigits)
 
+type Env = HM.HashMap String Aeson.Value
+
 _allowUnused :: IO ()
 _allowUnused = do
     let _ = litP
@@ -177,10 +179,6 @@ float = do
 parseFloat :: Text -> Either (ParseErrorBundle Text Void) Double
 parseFloat = parse (float <* eof) "<input>"
 
-
--- PICKUP can we avoid duplication of Env type defs using typeclasses sig or whatnot
--- type Env = HM.HashMap Text Aeson.Value
-type Env = HM.HashMap String Aeson.Value
 type Parser = Parsec Void Text
 
 -- `show (t :: Text)` does introduce double quote on both ends.

@@ -1,4 +1,4 @@
-cabal-version: 2.2
+cabal-version: 1.12
 
 -- This file has been generated from package.yaml by hpack version 0.38.1.
 --
@@ -29,8 +29,6 @@ library
       BEL
   other-modules:
       Paths_bel_expr
-  autogen-modules:
-      Paths_bel_expr
   hs-source-dirs:
       src
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
@@ -54,8 +52,6 @@ library
 executable bel-expr-exe
   main-is: Main.hs
   other-modules:
-      Paths_bel_expr
-  autogen-modules:
       Paths_bel_expr
   hs-source-dirs:
       app
@@ -82,8 +78,6 @@ test-suite bel-expr-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      Paths_bel_expr
-  autogen-modules:
       Paths_bel_expr
   hs-source-dirs:
       test
