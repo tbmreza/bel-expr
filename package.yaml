@@ -1,10 +1,10 @@
 name:                bel-expr
 version:             0.1.0.0
 github:              "githubuser/bel-expr"
-license:             BSD-3-Clause
-author:              "Author name here"
+license:             MIT
+author:              "Reza Handzalah"
 maintainer:          "example@example.com"
-copyright:           "2025 Author name here"
+copyright:           "2025 Reza Handzalah"
 
 extra-source-files:
 - README.md
