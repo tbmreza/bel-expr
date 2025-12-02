@@ -20,7 +20,7 @@ import Debug.Trace
 -- import Data.Time.Clock
 -- import Text.Regex.Posix ((=~))
 
-import BEL.BatteriesMain
+import qualified BEL.BatteriesMain as BEL
 
 
 -- import           Data.Either
@@ -68,12 +68,12 @@ _allowUnused = do
 toExpr :: Env -> [Token] -> IO Expr
 
 toExpr _env [TIdentifier thunk, TParenOpn, TParenCls] = do
-    tdy <- ioToday
+    tdy <- BEL.ioToday
     pure $ case thunk of
         "today" -> Data $ Aeson.String (Text.pack tdy)
         "year" -> Data $ Aeson.String "2025"
         "dayOfMonth" -> Data $ Aeson.String "4"
-        "loremIpsum 5" -> Data $ Aeson.String $ Text.pack $ loremChars 5  -- ??: thunks in scanner
+        "loremIpsum 5" -> Data $ Aeson.String $ Text.pack $ BEL.loremChars 5  -- ??: thunks in scanner
         _ -> Data $ Aeson.Null
 
 toExpr env els = trace "toExpr C" $ pure $ asExpr env els

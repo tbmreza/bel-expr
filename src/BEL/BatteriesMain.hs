@@ -1,4 +1,4 @@
-module BEL.BatteriesMain
+module BEL.BatteriesMain (ioToday, loremChars)
 where
 
 import           System.Random (randomR, mkStdGen)
