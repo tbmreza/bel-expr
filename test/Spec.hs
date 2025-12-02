@@ -24,20 +24,20 @@ import BEL
 
 main :: IO ()
 main = defaultMain $ testGroup "Happy tests"
-  [ test1 ]
-
-  -- [ test0
-  -- , test1
-  -- , test2
-  -- , test3
-  -- , test4
-  -- , test5
-  -- , test6
-  -- , test7
-  -- , test8
-  -- ]
-
-
+  [ test0
+  , test1
+  , test2
+  , test3
+  , test4
+  , test5
+  , test6
+  , test7
+  , test8
+  -- , test9
+  -- , test10
+  , test11
+  , test12
+  ]
 
 test0 :: TestTree
 test0 = testCase "valid bel program" $ do
@@ -132,9 +132,49 @@ test8 = testCase "jsonpath invocation" $ do
         (Data (Aeson.Bool True), Data (Aeson.Number 2005)) -> pure ()
         all -> assertFailure $ show all
 
+-- ?? chance it's stack overflow
+test9 :: TestTree
+test9 = testCase "arith precedence" $ do
+    -- 3 + 4 * 5 = 23
+    av1 <- BEL.eval HM.empty "3 + 4 * 5"
+    -- 4 * 5 + 3 = 23
+    av2 <- BEL.eval HM.empty "4 * 5 + 3"
 
--- ok
--- main :: IO ()
+    case (av1, av2) of
+        (Aeson.Number 23, Aeson.Number 23) -> pure ()
+        all -> assertFailure $ show all
+
+test10 :: TestTree
+test10 = testCase "arith sub div" $ do
+    -- 10 - 2 = 8
+    av1 <- BEL.eval HM.empty "10 - 2"
+    -- 20 / 4 = 5
+    av2 <- BEL.eval HM.empty "20 / 4"
+    -- 10 - 2 * 3 = 4
+    av3 <- BEL.eval HM.empty "10 - 2 * 3"
+
+    case (av1, av2, av3) of
+        (Aeson.Number 8, Aeson.Number 5, Aeson.Number 4) -> pure ()
+        all -> assertFailure $ show all
+
+test11 :: TestTree
+test11 = testCase "mixed number types" $ do
+    let env = HM.fromList [("base", Aeson.Number 10)]
+    -- base + 5.5 = 15.5
+    av1 <- BEL.eval env "base + 5.5"
+    
+    case av1 of
+        Aeson.Number 15.5 -> pure ()
+        _ -> assertFailure $ show av1
+
+test12 :: TestTree
+test12 = testCase "today function" $ do
+    -- just check it evaluates to a string
+    av1 <- BEL.eval HM.empty "today()"
+    case av1 of
+        Aeson.String _ -> pure ()
+        _ -> assertFailure $ show av1
+
 -- main = do
 --     let tokens = case runParser exprP "todo" "14.2 == 14.2  " of
 --     -- let tokens = case runParser exprP "todo" "today()" of
