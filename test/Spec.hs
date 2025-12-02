@@ -2,22 +2,11 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-
-import Debug.Trace
-
 import Test.Tasty
 import Test.Tasty.HUnit
 import qualified Data.HashMap.Strict as HM
-import           Data.Text (Text)
-import qualified Data.Text as Text
-import           Data.Void (Void)
 import qualified Data.Aeson.Types as Aeson (Value(..))
 import           Data.Aeson.QQ.Simple (aesonQQ)
-import qualified Text.Megaparsec.Char as C
-import           Text.Megaparsec ( Parsec, (<|>), some, anySingle, many, choice
-                                 , manyTill, lookAhead, try, eof, runParser
-                                 , parseTest
-                                 )
 
 import qualified BEL
 import BEL

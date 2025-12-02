@@ -1,25 +1,12 @@
-module BEL.BatteriesMain (ioToday, loremChars)
+module BEL.BatteriesMain (ioToday, ioYear, ioDayOfMonth, loremChars)
 where
 
-import           System.Random (randomR, mkStdGen)
-import Data.Time (Day, fromGregorian)
+import Data.Time (Day, toGregorian)
 import Data.Time.Clock
 import Data.Time.Format (formatTime, defaultTimeLocale)
 
-pureRandomInt :: Int -> Int -> Int -> Int
-pureRandomInt seed minVal maxVal =
-    let gen = mkStdGen seed
-        (val, _) = randomR (minVal, maxVal) gen
-    in val
-
 formatISODate :: Day -> String
 formatISODate day = formatTime defaultTimeLocale "%Y-%m-%d" day
-
-exampleDay :: Day
-exampleDay = fromGregorian 2025 9 18
-
-isoDate :: String
-isoDate = formatISODate exampleDay
 
 
 ioToday :: IO String
@@ -27,6 +14,18 @@ ioToday = do
     t <- getCurrentTime
     -- pure $ formatISODate exampleDay
     pure $ formatISODate (utctDay t)
+
+ioYear :: IO String
+ioYear = do
+    t <- getCurrentTime
+    let (y, _, _) = toGregorian (utctDay t)
+    pure $ show y
+
+ioDayOfMonth :: IO String
+ioDayOfMonth = do
+    t <- getCurrentTime
+    let (_, _, d) = toGregorian (utctDay t)
+    pure $ show d
 
 loremChars :: Int -> String
 loremChars n 
