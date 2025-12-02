@@ -92,44 +92,44 @@ asExpr _ [TNum v1, TEq, TNum v2] = Eq (Data $ Aeson.Number (fromFloatDigits v1))
 asExpr _ [TNum v1, TNeq, TNum v2] = Data $ Aeson.Bool (v1 /= v2)
 asExpr _ [TJsonpath, TQuoted t] = App (Fn "jsonpath") (Data $ Aeson.String t)
 
--- The pratt parsing technique.
-asExpr _env tokens = fst $ parseExpr tokens 0
-    where
-    parseExpr :: [Token] -> Int -> (Expr, [Token])
-    parseExpr toks minPrec = 
-      let (lhs, toks1) = parsePrimary toks
-      in parseExpr' lhs toks1 minPrec
-    
-    parseExpr' :: Expr -> [Token] -> Int -> (Expr, [Token])
-    parseExpr' lhs [] _ = (lhs, [])
-    parseExpr' lhs (op:rest) minPrec
-      | prec op >= minPrec =
-          let (rhs, rest') = parseExpr rest (prec op + 1)
-              lhs' = applyOp op lhs rhs
-          in parseExpr' lhs' rest' minPrec
-      | otherwise = (lhs, op:rest)
-    
-    parsePrimary :: [Token] -> (Expr, [Token])
-    parsePrimary (TNum n : rest) = (Data $ Aeson.Number (fromFloatDigits n), rest)
-    -- parsePrimary (TIdentifier x : rest) = (EVar x, rest)
-    -- ??
-    -- parsePrimary (TNum n : rest) = (ENum n, rest)
-    -- parsePrimary (TIdentifier x : rest) = (EVar x, rest)
-    parsePrimary _ = error "Expected primary expression"
-    
-    prec :: Token -> Int
-    prec TPlus = 1
-    prec TMinus = 1
-    prec TMult = 2
-    prec TDiv = 2
-    prec _ = 0
-    
-    applyOp :: Token -> Expr -> Expr -> Expr
-    applyOp TPlus  l r = Add l r
-    applyOp TMinus l r = Sub l r
-    applyOp TMult  l r = Mul l r
-    applyOp TDiv   l r = Div l r
-    applyOp _ _ _ = undefined
+-- -- The pratt parsing technique.
+-- asExpr _env tokens = fst $ parseExpr tokens 0
+--     where
+--     parseExpr :: [Token] -> Int -> (Expr, [Token])
+--     parseExpr toks minPrec = 
+--       let (lhs, toks1) = parsePrimary toks
+--       in parseExpr' lhs toks1 minPrec
+--     
+--     parseExpr' :: Expr -> [Token] -> Int -> (Expr, [Token])
+--     parseExpr' lhs [] _ = (lhs, [])
+--     parseExpr' lhs (op:rest) minPrec
+--       | prec op >= minPrec =
+--           let (rhs, rest') = parseExpr rest (prec op + 1)
+--               lhs' = applyOp op lhs rhs
+--           in parseExpr' lhs' rest' minPrec
+--       | otherwise = (lhs, op:rest)
+--     
+--     parsePrimary :: [Token] -> (Expr, [Token])
+--     parsePrimary (TNum n : rest) = (Data $ Aeson.Number (fromFloatDigits n), rest)
+--     -- parsePrimary (TIdentifier x : rest) = (EVar x, rest)
+--     -- ??
+--     -- parsePrimary (TNum n : rest) = (ENum n, rest)
+--     -- parsePrimary (TIdentifier x : rest) = (EVar x, rest)
+--     parsePrimary _ = error "Expected primary expression"
+--     
+--     prec :: Token -> Int
+--     prec TPlus = 1
+--     prec TMinus = 1
+--     prec TMult = 2
+--     prec TDiv = 2
+--     prec _ = 0
+--     
+--     applyOp :: Token -> Expr -> Expr -> Expr
+--     applyOp TPlus  l r = Add l r
+--     applyOp TMinus l r = Sub l r
+--     applyOp TMult  l r = Mul l r
+--     applyOp TDiv   l r = Div l r
+--     applyOp _ _ _ = undefined
 
 
 -- True iff both TIdentifier found and the values match.

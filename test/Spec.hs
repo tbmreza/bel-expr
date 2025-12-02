@@ -14,10 +14,10 @@ import BEL
 main :: IO ()
 main = defaultMain $ testGroup "Happy tests"
   [ test0
-  , test1
+  -- , test1  -- pratt
   , test2
   , test3
-  , test4
+  -- , test4  -- pratt
   , test5
   , test6
   , test7
