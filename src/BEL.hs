@@ -6,6 +6,7 @@ module BEL
   ( Env
   , partitions, Part(..)
   , eval, render
+  , eval2, render2
   -- For testing:
   , toExpr, Token(..), Expr(..), match, finalValue
   ) where
@@ -44,53 +45,81 @@ toExpr _env [TIdentifier thunk, TParenOpn, TParenCls] = do
     yr <- BEL.ioYear
     dom <- BEL.ioDayOfMonth
     pure $ case thunk of
-        "today" -> Data $ Aeson.String (Text.pack tdy)
-        "year" -> Data $ Aeson.String (Text.pack yr)
-        "dayOfMonth" -> Data $ Aeson.String (Text.pack dom)
+        -- "today" -> Data $ Aeson.String (Text.pack tdy)
+        -- "year" -> Data $ Aeson.String (Text.pack yr)
+        -- "dayOfMonth" -> Data $ Aeson.String (Text.pack dom)
+        "today" -> VString (Text.pack tdy)
+        "year" -> VString (Text.pack yr)
+        "dayOfMonth" -> VString (Text.pack dom)
         -- "loremIpsum 5" -> Data $ Aeson.String $ Text.pack $ BEL.loremChars 5
-        _ -> Data $ Aeson.Null
+        -- _ -> Data $ Aeson.Null  ??: must be null or "" is enough
+        _ -> VString ""
 
 toExpr env els = pure $ asExpr env els
 
 -- ??: document if warnings for fallback values are desirable
 asExpr :: Env -> [Token] -> Expr
+
 asExpr env [TIdentifier t] =
-    Data $ case HM.lookup (Text.unpack t) env of
-        Just v -> v
-        _ -> Aeson.String t
-asExpr _ [TBool v] = Data $ Aeson.Bool v
+    -- Data $ case HM.lookup (Text.unpack t) env of
+    --     Just v -> v
+    --     _ -> Aeson.String t
+    case HM.lookup (Text.unpack t) env of
+        -- Just (v :: Aeson.Value) -> VString ""
+        Just (one :: Aeson.Value) -> case one of
+            Aeson.Bool v -> VBool v
+            Aeson.String v -> VString v
+            Aeson.Number v -> VNum v
+        Nothing -> VString t
+
+
+        -- Just v -> v
+        -- _ -> Aeson.String t
+
+-- asExpr _ [TBool v] = Data $ Aeson.Bool v
+asExpr _ [TBool v] = VBool v
 
 asExpr env [TNum v1, TMult, TIdentifier t] = 
     let numOr1 = case HM.lookup (Text.unpack t) env of
             Just (Aeson.Number n) -> n
             _ -> 1 in
-    Num (numOr1 * fromFloatDigits v1)
+    VNum (numOr1 * fromFloatDigits v1)
 
 asExpr env [TNum v1, TPlus, TIdentifier t] = 
     let numOr0 = case HM.lookup (Text.unpack t) env of
             Just (Aeson.Number n) -> n
             _ -> 0 in
-    Num (numOr0 + fromFloatDigits v1)
+    VNum (numOr0 + fromFloatDigits v1)
 
 asExpr env [l@(TIdentifier _), TPlus, r@(TNum _)] = asExpr env [r, TPlus, l]
 
-asExpr _ [TNum v1, TPlus, TNum v2] = Data $ Aeson.Number (fromFloatDigits $ v1 + v2)
-asExpr _ [TNum v1, TMult, TNum v2] = Data $ Aeson.Number (fromFloatDigits $ v1 * v2)
+-- asExpr _ [TNum v1, TPlus, TNum v2] = Data $ Aeson.Number (fromFloatDigits $ v1 + v2)
+-- asExpr _ [TNum v1, TMult, TNum v2] = Data $ Aeson.Number (fromFloatDigits $ v1 * v2)
+asExpr _ [TNum v1, TPlus, TNum v2] = VNum (fromFloatDigits $ v1 + v2)
+asExpr _ [TNum v1, TMult, TNum v2] = VNum (fromFloatDigits $ v1 * v2)
 
 -- Eq (Data $ Aeson.String v1) (Data $ Aeson.String v2)
 
-asExpr _ [TQuoted v1,     TEq, TQuoted v2] =     Data $ Aeson.Bool (v1 == v2)
+-- asExpr _ [TQuoted v1,     TEq, TQuoted v2] =     Data $ Aeson.Bool (v1 == v2)
+asExpr _ [TQuoted v1,     TEq, TQuoted v2] =     VBool (v1 == v2)
 asExpr env [TQuoted v1,     TEq, TIdentifier v2] = asExpr env [TIdentifier v2, TEq, TQuoted v1]
 asExpr env [TIdentifier ti, TEq, TQuoted tq] =
     case HM.lookup (Text.unpack ti) env of
-        Nothing -> Data $ Aeson.Bool False
-        Just v -> Data $ Aeson.Bool (v == Aeson.String tq)
-asExpr env [lhs@(TIdentifier _), TEq, rhs@(TIdentifier _)] =
-    Data $ Aeson.Bool (unrefEqual env (lhs, rhs))
+        -- Nothing -> Data $ Aeson.Bool False
+        -- Just v -> Data $ Aeson.Bool (v == Aeson.String tq)
+        Nothing -> VBool False
+        Just v -> VBool (v == Aeson.String tq)
 
-asExpr _ [TNum v1, TEq, TNum v2] = Eq (Data $ Aeson.Number (fromFloatDigits v1)) (Data $ Aeson.Number (fromFloatDigits v2))
-asExpr _ [TNum v1, TNeq, TNum v2] = Data $ Aeson.Bool (v1 /= v2)
-asExpr _ [TJsonpath, TQuoted t] = App (Fn "jsonpath") (Data $ Aeson.String t)
+asExpr env [lhs@(TIdentifier _), TEq, rhs@(TIdentifier _)] =
+    -- Data $ Aeson.Bool (unrefEqual env (lhs, rhs))
+    VBool (unrefEqual env (lhs, rhs))
+
+-- asExpr _ [TNum v1, TEq, TNum v2] = Eq (Data $ Aeson.Number (fromFloatDigits v1)) (Data $ Aeson.Number (fromFloatDigits v2))
+asExpr _ [TNum v1, TEq, TNum v2] = Eq (VNum (fromFloatDigits v1)) (VNum (fromFloatDigits v2))
+-- asExpr _ [TNum v1, TNeq, TNum v2] = Data $ Aeson.Bool (v1 /= v2)
+asExpr _ [TNum v1, TNeq, TNum v2] = VBool (v1 /= v2)
+-- asExpr _ [TJsonpath, TQuoted t] = App (Fn "jsonpath") (Data $ Aeson.String t)
+asExpr _ [TJsonpath, TQuoted t] = App (Fn "jsonpath") (VString t)
 
 -- -- The pratt parsing technique.
 -- asExpr _env tokens = fst $ parseExpr tokens 0
@@ -176,22 +205,39 @@ eval env input =
             e <- toExpr env tokens
             pure $ finalValue env (match env e)
 
+eval2 :: Env -> Text -> IO Expr
+eval2 env input =
+    case runParser exprP "" input of
+        Left _ -> pure $ VString input
+        Right (tokens :: [Token]) -> do
+            e <- toExpr env tokens
+            pure (match env e)
+
 
 finalValue :: Env -> Expr -> Aeson.Value
 
-finalValue env (Data x@(Aeson.String k)) =
+finalValue env (VString k) =
     case HM.lookup (Text.unpack k) env of
         Just v -> v
-        Nothing -> x
+        Nothing -> Aeson.String k
 
-finalValue _ (Data final) = final
-finalValue _ (Num s) = Aeson.Number s
+-- finalValue env (Data x@(Aeson.String k)) =
+--     case HM.lookup (Text.unpack k) env of
+--         Just v -> v
+--         Nothing -> x
+
+-- finalValue _ (Data final) = final
+finalValue _ (VNum s) = Aeson.Number s
 finalValue _ e = Aeson.String (Text.pack $ show e)
 
-data Expr
-  = Data Aeson.Value
+data Expr =
+    VBool !Bool
+  -- | Data Aeson.Value  -- retiring this
+  -- | VObj  -- https://hackage.haskell.org/package/aeson-2.2.3.0/docs/Data-Aeson.html#t:Value
+  | VString !Text
+  | VNum  !Scientific
+
   | Fn   String
-  | Num  Scientific
 
   | Neg Expr
   | Eq  Expr Expr
@@ -210,37 +256,49 @@ match env = go
     where
     go :: Expr -> Expr
 
-    go final@(Data _) = final
-    go final@(Num _) = final
+    -- go final@(Data _) = final
+    go final@(VNum _) = final
 
-    go (Neg (Data (Aeson.Bool b))) = Data (Aeson.Bool (not b))
+    -- go (Neg (Data (Aeson.Bool b))) = Data (Aeson.Bool (not b))
+    go (Neg (VBool b)) = VBool $ not b
     go (Neg e) = go (Neg (go e))
 
-    go (Eq (Data v1) (Data v2)) = Data (Aeson.Bool (v1 == v2))
+    -- go (Eq (Data v1) (Data v2)) = Data (Aeson.Bool (v1 == v2))
+    go (Eq v1 v2) = VBool (v1 == v2)
     go (Eq e1 e2) = go (Eq (go e1) (go e2))
     go (Neq e1 e2) = go (Neg (Eq e1 e2))
 
-    go (App (Fn "ident") arg@(Data _)) = arg
+    -- go (App (Fn "ident") arg@(Data _)) = arg
 
-    go (App (Fn "jsonpath") (Data (Aeson.String q))) =
+    -- go (App (Fn "jsonpath") (Data (Aeson.String q))) =
+    --     case HM.lookup "RESP_BODY" env of
+    --         Nothing -> Data $ Aeson.String ""
+    --         Just root -> case queryBody (Text.unpack q) root of
+    --             Nothing -> Data $ Aeson.String ""
+    --             Just one -> Data one
+    go (App (Fn "jsonpath") (VString q)) =
         case HM.lookup "RESP_BODY" env of
-            Nothing -> Data $ Aeson.String ""
+            Nothing -> VString ""
             Just root -> case queryBody (Text.unpack q) root of
-                Nothing -> Data $ Aeson.String ""
-                Just one -> Data one
+                Nothing -> VString ""
+                -- Just (one :: Aeson.Value) -> Data one
+                Just (one :: Aeson.Value) -> case one of
+                    Aeson.Bool v -> VBool v
+                    Aeson.String v -> VString v
+                    Aeson.Number v -> VNum v
 
-    go (App (Fn "today") _) = Data (Aeson.String "?? merge thunks")
+    -- go (App (Fn "today") _) = Data (Aeson.String "?? merge thunks")
 
-    go (Add (Num v1) (Num v2)) = Num (v1 + v2)
+    go (Add (VNum v1) (VNum v2)) = VNum (v1 + v2)
     go (Add e1 e2) =       go (Add (go e1) (go e2))
 
-    go (Mul (Num v1) (Num v2)) = Num (v1 * v2)
+    go (Mul (VNum v1) (VNum v2)) = VNum (v1 * v2)
     go (Mul e1 e2) =       go (Mul (go e1) (go e2))
 
-    go (Sub (Num v1) (Num v2)) = Num (v1 - v2)
+    go (Sub (VNum v1) (VNum v2)) = VNum (v1 - v2)
     go (Sub e1 e2) = go (Sub (go e1) (go e2))
 
-    go (Div (Num v1) (Num v2)) = Num (v1 / v2)
+    go (Div (VNum v1) (VNum v2)) = VNum (v1 / v2)
     go (Div e1 e2) = go (Div (go e1) (go e2))
 
     go e = e
@@ -405,7 +463,6 @@ needsEvalP = try $ do
 
 
 -- render env (Aeson.String "paragraph so far") [Right "."]
--- eval env "."
 -- impureRenderTemplate :: Env -> Text -> IO (Either String Text)
 -- BEL internal error
 -- hh internal error
@@ -437,7 +494,9 @@ render env (Aeson.String acc) ((R t):rest) =
 
 render env (Aeson.String acc) ((L t):rest) = do
     evaled :: Aeson.Value <- eval env t
+    evale  :: Expr <- eval2 env t
 
+    -- render necessitates for effective final values to be string.
     let str = case evaled of
             Aeson.String txt -> show' txt
             Aeson.Object obj -> show obj
@@ -448,6 +507,31 @@ render env (Aeson.String acc) ((L t):rest) = do
     render env ss rest
 
 render _ _ _ = pure $ Aeson.String ""
+
+render2 :: Env -> Aeson.Value -> [Part] -> IO Aeson.Value
+render2 _env accStr [] =
+    pure accStr
+
+render2 env (Aeson.String acc) ((R t):rest) =
+    let grow :: Text = Text.concat [acc, t] in
+    render2 env (Aeson.String grow) rest
+
+render2 env (Aeson.String acc) ((L t):rest) = do
+    -- evaled :: Aeson.Value <- eval env t
+    evale  :: Expr <- eval2 env t
+    let evaled = finalValue env evale
+
+    -- render2 necessitates for effective final values to be string.
+    let str = case evaled of
+            Aeson.String txt -> show' txt
+            Aeson.Object obj -> show obj
+            Aeson.Number n -> show n  -- ??: present point zero as (show n)[:-2]
+            _ -> ("unhandled render2 L" :: String)
+
+    let ss :: Aeson.Value = Aeson.String $ Text.concat [acc, Text.pack str]
+    render2 env ss rest
+
+render2 _ _ _ = pure $ Aeson.String ""
 
 
 identifier :: Parser Text

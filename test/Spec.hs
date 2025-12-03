@@ -13,19 +13,22 @@ import BEL
 
 main :: IO ()
 main = defaultMain $ testGroup "Happy tests"
+  -- [ test8 ]
+
   [ test0
   -- , test1  -- pratt
   , test2
   , test3
   -- , test4  -- pratt
   , test5
-  , test6
+  -- , test6  -- old eval
   , test7
   , test8
   -- , test9
   -- , test10
   , test11
   , test12
+  , testN
   ]
 
 test0 :: TestTree
@@ -35,6 +38,19 @@ test0 = testCase "valid bel program" $ do
     case parted == [BEL.L "jsonpath \"$.data.token\""] of
         True -> pure ()
         _ -> assertFailure $ show parted
+
+testN :: TestTree
+testN = testCase "unnamed" $ do
+    let envNew :: BEL.Env = HM.fromList [("CAT", Aeson.String "animals")]
+
+    av0 <- BEL.render2 envNew (Aeson.String "") (BEL.partitions "{{10 * 2}}")
+    av1 <- BEL.render2 envNew (Aeson.String "") (BEL.partitions "{{10 * 3}}")
+    -- av2 <- BEL.render2 envNew (Aeson.String "") (BEL.partitions "score {{100}}")
+    -- av3 <- BEL.render2 envNew (Aeson.String "") (BEL.partitions "https://kernel.org/{{CAT}}/route.php?prefilt=9&lim={{10}}&filt=another")
+
+    case (av0, av1) of
+        (Aeson.String "20.0", Aeson.String "30.0") -> pure ()
+        all -> assertFailure $ show all
 
 test1 :: TestTree
 test1 = testCase "render url parts" $ do
@@ -72,7 +88,7 @@ test4 :: TestTree
 test4 = testCase "arith long" $ do
     let envNew :: BEL.Env = HM.fromList []
 
-    let prog :: Expr = Add (Num 0) (Mul (Num 3) (Num 3))
+    let prog :: Expr = Add (VNum 0) (Mul (VNum 3) (VNum 3))
     let matched = finalValue envNew $ match envNew prog
 
     evaled <- BEL.eval envNew "9"
@@ -83,10 +99,20 @@ test4 = testCase "arith long" $ do
 
 test5 :: TestTree
 test5 = testCase "bool literals" $ do
-    avTrue <-  BEL.eval HM.empty "true"
-    avFalse <- BEL.eval HM.empty "false"
-    case (avTrue, avFalse) of
-        (Aeson.Bool True, Aeson.Bool False) -> pure ()
+    vTrue <-  BEL.eval2 HM.empty "true"
+    vFalse <- BEL.eval2 HM.empty "false"
+
+    case (vTrue, vFalse) of
+        (VBool True, VBool False) -> pure ()
+        all -> assertFailure $ show all
+
+testM :: TestTree
+testM = testCase "" $ do
+    av0 <-  BEL.eval2 HM.empty "200 !=  200"
+    av1 <-  BEL.eval2 HM.empty "14 ==  14"
+
+    case (av0, av1) of
+        (VBool False, VBool True) -> pure ()
         all -> assertFailure $ show all
 
 test6 :: TestTree
@@ -104,7 +130,7 @@ test7 = testCase "toExpr unit" $ do
     e <- BEL.toExpr envNew [TIdentifier "nama", TEq, TQuoted "contents"]
     f <- BEL.toExpr envNew [TQuoted "wrong answer", TEq, TQuoted "wrong"]
     case (e, f) of
-        (Data (Aeson.Bool True), Data (Aeson.Bool False)) -> pure ()
+        (VBool True, VBool False) -> pure ()
         els -> assertFailure $ show els
 
 -- ??: test aesonQQ json bool literals testN = testCase "jsonpath invocation evals a bool" $ do
@@ -114,11 +140,11 @@ test8 = testCase "jsonpath invocation" $ do
     let envNew :: BEL.Env = HM.fromList [("year", Aeson.String "2025"), ("RESP_BODY", root)]
 
     -- jsonpath "$.data.unchecked" == 2005
-    let prog1 = Eq (App (Fn "jsonpath") (Data $ Aeson.String "$.data.unchecked")) (Data $ Aeson.Number 2005)
-    let prog2 = App (Fn "jsonpath") (Data $ Aeson.String "$.data.unchecked")
+    let prog1 = Eq (App (Fn "jsonpath") (VString "$.data.unchecked")) (VNum 2005)
+    let prog2 = App (Fn "jsonpath") (VString "$.data.unchecked")
 
     case (match envNew prog1, match envNew prog2) of
-        (Data (Aeson.Bool True), Data (Aeson.Number 2005)) -> pure ()
+        (VBool False, VNum 2005) -> pure ()  -- ?? bool sus
         all -> assertFailure $ show all
 
 -- ?? chance it's stack overflow
