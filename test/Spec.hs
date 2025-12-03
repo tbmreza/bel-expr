@@ -13,23 +13,23 @@ import BEL
 
 main :: IO ()
 main = defaultMain $ testGroup "Happy tests"
-  -- [ test8 ]
+  [ test5 ]
 
-  [ test0
-  -- , test1  -- pratt
-  , test2
-  , test3
-  -- , test4  -- pratt
-  , test5
-  -- , test6  -- old eval
-  , test7
-  , test8
-  -- , test9
-  -- , test10
-  , test11
-  , test12
-  , testN
-  ]
+  -- [ test0
+  -- -- , test1  -- pratt
+  -- , test2
+  -- , test3
+  -- -- , test4  -- pratt
+  -- , test5
+  -- -- , test6  -- old eval
+  -- , test7
+  -- , test8
+  -- -- , test9
+  -- -- , test10
+  -- , test11
+  -- , test12
+  -- , testN
+  -- ]
 
 test0 :: TestTree
 test0 = testCase "valid bel program" $ do
@@ -82,6 +82,19 @@ test3 = testCase "arith basic" $ do
 
     case (av1, av2) of
         (Aeson.Number 2000, Aeson.Number 50) -> pure ()
+        all -> assertFailure $ show all
+
+test4' :: TestTree
+test4' = testCase "arith long" $ do
+    let envNew :: BEL.Env = HM.fromList []
+
+    let prog :: Expr = Add (VNum 0) (Mul (VNum 3) (VNum 3))
+    -- let matched = finalValue envNew $ match envNew prog
+
+    evaled <- BEL.eval2 envNew "9"
+
+    case evaled of
+        VNum 9 -> pure ()
         all -> assertFailure $ show all
 
 test4 :: TestTree

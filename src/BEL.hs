@@ -11,6 +11,8 @@ module BEL
   , toExpr, Token(..), Expr(..), match, finalValue
   ) where
 
+import Debug.Trace
+
 import qualified BEL.BatteriesMain as BEL
 
 import qualified Data.ByteString.Lazy as ByteString (toStrict)
@@ -70,6 +72,8 @@ asExpr env [TIdentifier t] =
             Aeson.Bool v -> VBool v
             Aeson.String v -> VString v
             Aeson.Number v -> VNum v
+            av -> trace (show av) (VString "else")
+            -- av -> VString ("asExpr else: " ++ show av)
         Nothing -> VString t
 
 
@@ -120,6 +124,9 @@ asExpr _ [TNum v1, TEq, TNum v2] = Eq (VNum (fromFloatDigits v1)) (VNum (fromFlo
 asExpr _ [TNum v1, TNeq, TNum v2] = VBool (v1 /= v2)
 -- asExpr _ [TJsonpath, TQuoted t] = App (Fn "jsonpath") (Data $ Aeson.String t)
 asExpr _ [TJsonpath, TQuoted t] = App (Fn "jsonpath") (VString t)
+
+asExpr _ [TNum v] = VNum (fromFloatDigits v)
+asExpr _ toks = VString (Text.pack $ show toks)
 
 -- -- The pratt parsing technique.
 -- asExpr _env tokens = fst $ parseExpr tokens 0
@@ -227,6 +234,7 @@ finalValue env (VString k) =
 --         Nothing -> x
 
 -- finalValue _ (Data final) = final
+finalValue _ (VBool s) = Aeson.Bool s
 finalValue _ (VNum s) = Aeson.Number s
 finalValue _ e = Aeson.String (Text.pack $ show e)
 
