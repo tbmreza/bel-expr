@@ -6,7 +6,6 @@ module BEL
   ( Env
   , partitions, Part(..)
   , eval, render
-  , eval2, render2
   -- For testing:
   , toExpr, Token(..), Expr(..), match, finalValue
   ) where
@@ -204,16 +203,16 @@ show' t = trimQuotes $ show t
 
 -- First assume that Aeson.Value here should distinct Aeson.Number and Aeson.String because
 -- `eval`ed text is stored to Env; might look through it for arith.
-eval :: Env -> Text -> IO Aeson.Value
-eval env input =
-    case runParser exprP "" input of
-        Left _ -> pure $ Aeson.String input
-        Right (tokens :: [Token]) -> do
-            e <- toExpr env tokens
-            pure $ finalValue env (match env e)
+-- eval :: Env -> Text -> IO Aeson.Value
+-- eval env input =
+--     case runParser exprP "" input of
+--         Left _ -> pure $ Aeson.String input
+--         Right (tokens :: [Token]) -> do
+--             e <- toExpr env tokens
+--             pure $ finalValue env (match env e)
 
-eval2 :: Env -> Text -> IO Expr
-eval2 env input =
+eval :: Env -> Text -> IO Expr
+eval env input =
     case runParser exprP "" input of
         Left _ -> pure $ VString input
         Right (tokens :: [Token]) -> do
@@ -240,7 +239,6 @@ finalValue _ e = Aeson.String (Text.pack $ show e)
 
 data Expr =
     VBool !Bool
-  -- | Data Aeson.Value  -- retiring this
   -- | VObj  -- https://hackage.haskell.org/package/aeson-2.2.3.0/docs/Data-Aeson.html#t:Value
   | VString !Text
   | VNum  !Scientific
@@ -492,6 +490,30 @@ partitions input =
         Right parts -> parts
 
 -- Argument either needs evaluation (Left) or already just "Right".
+-- render :: Env -> Aeson.Value -> [Part] -> IO Aeson.Value
+-- render _env accStr [] =
+--     pure accStr
+--
+-- render env (Aeson.String acc) ((R t):rest) =
+--     let grow :: Text = Text.concat [acc, t] in
+--     render env (Aeson.String grow) rest
+--
+-- render env (Aeson.String acc) ((L t):rest) = do
+--     evaled :: Aeson.Value <- eval env t
+--     evale  :: Expr <- eval2 env t
+--
+--     -- render necessitates for effective final values to be string.
+--     let str = case evaled of
+--             Aeson.String txt -> show' txt
+--             Aeson.Object obj -> show obj
+--             Aeson.Number n -> show n  -- ??: present point zero as (show n)[:-2]
+--             _ -> ("unhandled render L" :: String)
+--
+--     let ss :: Aeson.Value = Aeson.String $ Text.concat [acc, Text.pack str]
+--     render env ss rest
+--
+-- render _ _ _ = pure $ Aeson.String ""
+
 render :: Env -> Aeson.Value -> [Part] -> IO Aeson.Value
 render _env accStr [] =
     pure accStr
@@ -501,8 +523,9 @@ render env (Aeson.String acc) ((R t):rest) =
     render env (Aeson.String grow) rest
 
 render env (Aeson.String acc) ((L t):rest) = do
-    evaled :: Aeson.Value <- eval env t
-    evale  :: Expr <- eval2 env t
+    -- evaled :: Aeson.Value <- eval env t
+    evale  :: Expr <- eval env t
+    let evaled = finalValue env evale
 
     -- render necessitates for effective final values to be string.
     let str = case evaled of
@@ -515,31 +538,6 @@ render env (Aeson.String acc) ((L t):rest) = do
     render env ss rest
 
 render _ _ _ = pure $ Aeson.String ""
-
-render2 :: Env -> Aeson.Value -> [Part] -> IO Aeson.Value
-render2 _env accStr [] =
-    pure accStr
-
-render2 env (Aeson.String acc) ((R t):rest) =
-    let grow :: Text = Text.concat [acc, t] in
-    render2 env (Aeson.String grow) rest
-
-render2 env (Aeson.String acc) ((L t):rest) = do
-    -- evaled :: Aeson.Value <- eval env t
-    evale  :: Expr <- eval2 env t
-    let evaled = finalValue env evale
-
-    -- render2 necessitates for effective final values to be string.
-    let str = case evaled of
-            Aeson.String txt -> show' txt
-            Aeson.Object obj -> show obj
-            Aeson.Number n -> show n  -- ??: present point zero as (show n)[:-2]
-            _ -> ("unhandled render2 L" :: String)
-
-    let ss :: Aeson.Value = Aeson.String $ Text.concat [acc, Text.pack str]
-    render2 env ss rest
-
-render2 _ _ _ = pure $ Aeson.String ""
 
 
 identifier :: Parser Text

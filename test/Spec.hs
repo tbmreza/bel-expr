@@ -10,26 +10,32 @@ import           Data.Aeson.QQ.Simple (aesonQQ)
 
 import qualified BEL
 import BEL
+import Data.Text (Text)
+
+evalValue :: BEL.Env -> Text -> IO Aeson.Value
+evalValue env input = do
+    e <- BEL.eval env input
+    pure $ BEL.finalValue env e
 
 main :: IO ()
 main = defaultMain $ testGroup "Happy tests"
-  [ test5 ]
-
-  -- [ test0
-  -- -- , test1  -- pratt
-  -- , test2
-  -- , test3
-  -- -- , test4  -- pratt
-  -- , test5
-  -- -- , test6  -- old eval
-  -- , test7
-  -- , test8
-  -- -- , test9
-  -- -- , test10
-  -- , test11
-  -- , test12
-  -- , testN
-  -- ]
+  [ test0
+  , test1
+  , test2
+  , test3
+  , test4'
+  , test4
+  , test5
+  , testM
+  , test6
+  , test7
+  , test8
+  -- , test9
+  -- , test10
+  , test11
+  , test12
+  , testN
+  ]
 
 test0 :: TestTree
 test0 = testCase "valid bel program" $ do
@@ -43,10 +49,10 @@ testN :: TestTree
 testN = testCase "unnamed" $ do
     let envNew :: BEL.Env = HM.fromList [("CAT", Aeson.String "animals")]
 
-    av0 <- BEL.render2 envNew (Aeson.String "") (BEL.partitions "{{10 * 2}}")
-    av1 <- BEL.render2 envNew (Aeson.String "") (BEL.partitions "{{10 * 3}}")
-    -- av2 <- BEL.render2 envNew (Aeson.String "") (BEL.partitions "score {{100}}")
-    -- av3 <- BEL.render2 envNew (Aeson.String "") (BEL.partitions "https://kernel.org/{{CAT}}/route.php?prefilt=9&lim={{10}}&filt=another")
+    av0 <- BEL.render envNew (Aeson.String "") (BEL.partitions "{{10 * 2}}")
+    av1 <- BEL.render envNew (Aeson.String "") (BEL.partitions "{{10 * 3}}")
+    -- av2 <- BEL.render envNew (Aeson.String "") (BEL.partitions "score {{100}}")
+    -- av3 <- BEL.render envNew (Aeson.String "") (BEL.partitions "https://kernel.org/{{CAT}}/route.php?prefilt=9&lim={{10}}&filt=another")
 
     case (av0, av1) of
         (Aeson.String "20.0", Aeson.String "30.0") -> pure ()
@@ -77,8 +83,8 @@ test3 :: TestTree
 test3 = testCase "arith basic" $ do
     let envNew :: BEL.Env = HM.fromList [("margin", Aeson.Number 3)]
 
-    av1 <- BEL.eval envNew "2 * 1000"
-    av2 <- BEL.eval envNew "47 + margin"
+    av1 <- evalValue envNew "2 * 1000"
+    av2 <- evalValue envNew "47 + margin"
 
     case (av1, av2) of
         (Aeson.Number 2000, Aeson.Number 50) -> pure ()
@@ -91,7 +97,7 @@ test4' = testCase "arith long" $ do
     let prog :: Expr = Add (VNum 0) (Mul (VNum 3) (VNum 3))
     -- let matched = finalValue envNew $ match envNew prog
 
-    evaled <- BEL.eval2 envNew "9"
+    evaled <- BEL.eval envNew "9"
 
     case evaled of
         VNum 9 -> pure ()
@@ -104,7 +110,7 @@ test4 = testCase "arith long" $ do
     let prog :: Expr = Add (VNum 0) (Mul (VNum 3) (VNum 3))
     let matched = finalValue envNew $ match envNew prog
 
-    evaled <- BEL.eval envNew "9"
+    evaled <- evalValue envNew "9"
 
     case (matched, evaled) of
         (Aeson.Number 9, Aeson.Number 9) -> pure ()
@@ -112,8 +118,8 @@ test4 = testCase "arith long" $ do
 
 test5 :: TestTree
 test5 = testCase "bool literals" $ do
-    vTrue <-  BEL.eval2 HM.empty "true"
-    vFalse <- BEL.eval2 HM.empty "false"
+    vTrue <-  BEL.eval HM.empty "true"
+    vFalse <- BEL.eval HM.empty "false"
 
     case (vTrue, vFalse) of
         (VBool True, VBool False) -> pure ()
@@ -121,8 +127,8 @@ test5 = testCase "bool literals" $ do
 
 testM :: TestTree
 testM = testCase "" $ do
-    av0 <-  BEL.eval2 HM.empty "200 !=  200"
-    av1 <-  BEL.eval2 HM.empty "14 ==  14"
+    av0 <-  BEL.eval HM.empty "200 !=  200"
+    av1 <-  BEL.eval HM.empty "14 ==  14"
 
     case (av0, av1) of
         (VBool False, VBool True) -> pure ()
@@ -130,8 +136,8 @@ testM = testCase "" $ do
 
 test6 :: TestTree
 test6 = testCase "assertion line" $ do
-    av0 <-  BEL.eval HM.empty "200 !=  200"
-    av1 <-  BEL.eval HM.empty "14 ==  14"
+    av0 <-  evalValue HM.empty "200 !=  200"
+    av1 <-  evalValue HM.empty "14 ==  14"
 
     case (av0, av1) of
         (Aeson.Bool False, Aeson.Bool True) -> pure ()
@@ -164,9 +170,9 @@ test8 = testCase "jsonpath invocation" $ do
 test9 :: TestTree
 test9 = testCase "arith precedence" $ do
     -- 3 + 4 * 5 = 23
-    av1 <- BEL.eval HM.empty "3 + 4 * 5"
+    av1 <- evalValue HM.empty "3 + 4 * 5"
     -- 4 * 5 + 3 = 23
-    av2 <- BEL.eval HM.empty "4 * 5 + 3"
+    av2 <- evalValue HM.empty "4 * 5 + 3"
 
     case (av1, av2) of
         (Aeson.Number 23, Aeson.Number 23) -> pure ()
@@ -175,11 +181,11 @@ test9 = testCase "arith precedence" $ do
 test10 :: TestTree
 test10 = testCase "arith sub div" $ do
     -- 10 - 2 = 8
-    av1 <- BEL.eval HM.empty "10 - 2"
+    av1 <- evalValue HM.empty "10 - 2"
     -- 20 / 4 = 5
-    av2 <- BEL.eval HM.empty "20 / 4"
+    av2 <- evalValue HM.empty "20 / 4"
     -- 10 - 2 * 3 = 4
-    av3 <- BEL.eval HM.empty "10 - 2 * 3"
+    av3 <- evalValue HM.empty "10 - 2 * 3"
 
     case (av1, av2, av3) of
         (Aeson.Number 8, Aeson.Number 5, Aeson.Number 4) -> pure ()
@@ -189,7 +195,7 @@ test11 :: TestTree
 test11 = testCase "mixed number types" $ do
     let env = HM.fromList [("base", Aeson.Number 10)]
     -- base + 5.5 = 15.5
-    av1 <- BEL.eval env "base + 5.5"
+    av1 <- evalValue env "base + 5.5"
     
     case av1 of
         Aeson.Number 15.5 -> pure ()
@@ -198,7 +204,7 @@ test11 = testCase "mixed number types" $ do
 test12 :: TestTree
 test12 = testCase "today function" $ do
     -- just check it evaluates to a string
-    av1 <- BEL.eval HM.empty "today()"
+    av1 <- evalValue HM.empty "today()"
     case av1 of
         Aeson.String _ -> pure ()
         _ -> assertFailure $ show av1
