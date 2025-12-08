@@ -20,6 +20,8 @@ evalValue env input = do
 
 main :: IO ()
 main = defaultMain $ testGroup "Happy tests"
+    -- [ test9 ]
+
   [ test0
   , test1
   , test2
@@ -29,8 +31,8 @@ main = defaultMain $ testGroup "Happy tests"
   , test6
   , test7
   , test8
-  -- , test9
-  -- , test10
+  , test9
+  , test10
   , test11
   , test12
   ]

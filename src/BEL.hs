@@ -51,64 +51,99 @@ toExpr _env [TIdentifier thunk, TParenOpn, TParenCls] = do
         -- "loremIpsum 5" -> Data $ Aeson.String $ Text.pack $ BEL.loremChars 5
         _ -> VString ""
 
-toExpr env els = pure $ asExpr env els
+toExpr env els = 
+    let (expr, _) = expression env 0 els
+    in pure (match env expr)
 
--- ??: document if warnings for fallback values are desirable
-asExpr :: Env -> [Token] -> Expr
+-- Pratt Parser Implementation
 
-asExpr env [TIdentifier t] =
+bp :: Token -> Int
+bp TEq = 5
+bp TNeq = 5
+bp TLte = 5
+bp TGte = 5
+bp TPlus = 10
+bp TMinus = 10
+bp TMult = 20
+bp TDiv = 20
+bp _ = 0
+
+
+
+nud :: Env -> Token -> [Token] -> (Expr, [Token])
+
+nud _ (TNum n) rest = (VNum (fromFloatDigits n), rest)
+
+nud _ (TBool b) rest = (VBool b, rest)
+
+nud _ (TQuoted s) rest = (VString s, rest)
+
+nud env (TIdentifier t) rest =
     case HM.lookup (Text.unpack t) env of
-        Just (one :: Aeson.Value) -> case one of
-            Aeson.Bool v -> VBool v
-            Aeson.String v -> VString v
-            Aeson.Number v -> VNum v
-            av -> trace (show av) (VString "else")
-        Nothing -> VString t
+        Just (Aeson.Bool v) -> (VBool v, rest)
+        Just (Aeson.String v) -> (VString v, rest)
+        Just (Aeson.Number v) -> (VNum v, rest)
+        Just av -> (trace (show av) (VString "else"), rest)
+        Nothing -> (VString t, rest)
 
-asExpr _ [TBool v] = VBool v
+nud env TJsonpath (TQuoted t : rest) = (App (Fn "jsonpath") (VString t), rest)
 
-asExpr env [TNum v1, TMult, TIdentifier t] = 
-    let numOr1 = case HM.lookup (Text.unpack t) env of
-            Just (Aeson.Number n) -> n
-            _ -> 1 in
-    VNum (numOr1 * fromFloatDigits v1)
+nud env TParenOpn rest =
+    let (e, rest') = expression env 0 rest
+    in case rest' of
+        (TParenCls:rest'') -> (e, rest'')
+        _ -> (e, rest')
 
-asExpr env [TNum v1, TPlus, TIdentifier t] = 
-    let numOr0 = case HM.lookup (Text.unpack t) env of
-            Just (Aeson.Number n) -> n
-            _ -> 0 in
-    VNum (numOr0 + fromFloatDigits v1)
+nud _ t _ = (VString (Text.pack $ show [t]), [])
 
-asExpr env [l@(TIdentifier _), TPlus, r@(TNum _)] = asExpr env [r, TPlus, l]
 
-asExpr _ [TNum v1, TPlus, TNum v2] = VNum (fromFloatDigits $ v1 + v2)
-asExpr _ [TNum v1, TMult, TNum v2] = VNum (fromFloatDigits $ v1 * v2)
 
-asExpr _ [TQuoted v1,     TEq, TQuoted v2] =     VBool (v1 == v2)
-asExpr env [TQuoted v1,     TEq, TIdentifier v2] = asExpr env [TIdentifier v2, TEq, TQuoted v1]
-asExpr env [TIdentifier ti, TEq, TQuoted tq] =
-    case HM.lookup (Text.unpack ti) env of
-        Nothing -> VBool False
-        Just v -> VBool (v == Aeson.String tq)
+led :: Env -> Token -> Expr -> [Token] -> (Expr, [Token])
 
-asExpr env [lhs@(TIdentifier _), TEq, rhs@(TIdentifier _)] =
-    VBool (unrefEqual env (lhs, rhs))
+led env TPlus left rest =
+    let (right, rest') = expression env 10 rest
+    in (Add left right, rest')
 
-asExpr _ [TNum v1, TEq, TNum v2] = Eq (VNum (fromFloatDigits v1)) (VNum (fromFloatDigits v2))
-asExpr _ [TNum v1, TNeq, TNum v2] = VBool (v1 /= v2)
-asExpr _ [TJsonpath, TQuoted t] = App (Fn "jsonpath") (VString t)
+led env TMinus left rest =
+    let (right, rest') = expression env 10 rest
+    in (Sub left right, rest')
 
-asExpr _ [TNum v] = VNum (fromFloatDigits v)
-asExpr _ toks = VString (Text.pack $ show toks)
+led env TMult left rest =
+    let (right, rest') = expression env 20 rest
+    in (Mul left right, rest')
 
--- True iff both TIdentifier found and the values match.
-unrefEqual :: Env -> (Token, Token) -> Bool
-unrefEqual env ((TIdentifier varA), (TIdentifier varB)) =
-    case (HM.lookup (Text.unpack varA) env,
-          HM.lookup (Text.unpack varB) env) of
-        (Just v1, Just v2) -> v1 == v2
-        _ -> False
-unrefEqual _ _ = False
+led env TDiv left rest =
+    let (right, rest') = expression env 20 rest
+    in (Div left right, rest')
+
+led env TEq left rest =
+    let (right, rest') = expression env 5 rest
+    in (Eq left right, rest')
+
+led env TNeq left rest =
+    let (right, rest') = expression env 5 rest
+    in (Neq left right, rest')
+
+led _ t left rest = (left, t:rest)
+
+expression :: Env -> Int -> [Token] -> (Expr, [Token])
+expression env rbp tokens =
+    case tokens of
+        [] -> (VString "", [])
+        (t:rest) ->
+            let (left, rest') = nud env t rest
+            in loop env rbp left rest'
+
+loop :: Env -> Int -> Expr -> [Token] -> (Expr, [Token])
+loop env rbp left tokens =
+    case tokens of
+        [] -> (left, [])
+        (t:rest) ->
+            if bp t > rbp
+            then
+                let (newLeft, newRest) = led env t left rest
+                in loop env rbp newLeft newRest
+            else (left, tokens)
 
 
 -- Space consumer
