@@ -35,7 +35,7 @@ import           Text.Megaparsec ( Parsec, (<|>), some
 
 import Control.Applicative (empty)
 import qualified Text.Megaparsec.Char.Lexer as L
-import Data.Scientific (Scientific, fromFloatDigits)
+import Data.Scientific (Scientific)
 
 type Env = HM.HashMap String Aeson.Value
 
@@ -72,7 +72,7 @@ bp _ = 0
 
 nud :: Env -> Token -> [Token] -> (Expr, [Token])
 
-nud _ (TNum n) rest = (VNum (fromFloatDigits n), rest)
+nud _ (TNum n) rest = (VNum n, rest)
 
 nud _ (TBool b) rest = (VBool b, rest)
 
@@ -150,9 +150,9 @@ loop env rbp left tokens =
 sc :: Parser ()
 sc = L.space C.space1 empty empty
 
-float :: Parser Double
-float = do
-    L.signed sc (try L.float <|> fmap fromIntegral (L.decimal :: Parser Integer))
+number :: Parser Scientific
+number = do
+    L.signed sc L.scientific
 
 type Parser = Parsec Void Text
 
@@ -297,9 +297,8 @@ data Token =
   | TIdentifier Text
   | TQuoted Text
   | TParenOpn | TParenCls
-  -- | TNum Scientific  -- ??: pro [Aeson] con [parseFloat]
   | TPlus | TMinus | TMult | TDiv
-  | TNum Double
+  | TNum Scientific
   deriving (Show, Eq)
 
 
@@ -356,7 +355,7 @@ operatorP = choice
 
 valueP :: Parser Token
 valueP = choice
-  [ TNum <$> try float
+  [ TNum <$> try number
   , TIdentifier <$> identifier
   ]
 
