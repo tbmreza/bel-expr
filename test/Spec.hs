@@ -12,6 +12,7 @@ import qualified BEL
 import BEL
 import Data.Text (Text)
 
+-- ??: don define a new callsite in tests code
 evalValue :: BEL.Env -> Text -> IO Aeson.Value
 evalValue env input = do
     e <- BEL.eval env input
@@ -23,10 +24,8 @@ main = defaultMain $ testGroup "Happy tests"
   , test1
   , test2
   , test3
-  , test4'
   , test4
   , test5
-  , testM
   , test6
   , test7
   , test8
@@ -34,32 +33,22 @@ main = defaultMain $ testGroup "Happy tests"
   -- , test10
   , test11
   , test12
-  , testN
   ]
 
 test0 :: TestTree
-test0 = testCase "valid bel program" $ do
-    let parted = BEL.partitions "{{jsonpath \"$.data.token\"}}"
-
-    case parted == [BEL.L "jsonpath \"$.data.token\""] of
-        True -> pure ()
-        _ -> assertFailure $ show parted
-
-testN :: TestTree
-testN = testCase "unnamed" $ do
-    let envNew :: BEL.Env = HM.fromList [("CAT", Aeson.String "animals")]
-
-    av0 <- BEL.render envNew (Aeson.String "") (BEL.partitions "{{10 * 2}}")
-    av1 <- BEL.render envNew (Aeson.String "") (BEL.partitions "{{10 * 3}}")
-    -- av2 <- BEL.render envNew (Aeson.String "") (BEL.partitions "score {{100}}")
-    -- av3 <- BEL.render envNew (Aeson.String "") (BEL.partitions "https://kernel.org/{{CAT}}/route.php?prefilt=9&lim={{10}}&filt=another")
-
-    case (av0, av1) of
-        (Aeson.String "20.0", Aeson.String "30.0") -> pure ()
+test0 = testCase "part kinds" $ do
+    case BEL.partitions "key: {{jsonpath \"$.data.token\"}}," of
+        [BEL.R "key: ", BEL.L "jsonpath \"$.data.token\"", BEL.R ","] -> pure ()
         all -> assertFailure $ show all
 
 test1 :: TestTree
-test1 = testCase "render url parts" $ do
+test1 = testCase "partition sentence" $ do
+    case BEL.partitions "been up for {{dur}} minutes." of
+        [BEL.R "been up for ", BEL.L "dur", BEL.R " minutes."] -> pure ()
+        all -> assertFailure $ show all
+
+test2 :: TestTree
+test2 = testCase "render template parts" $ do
     let envNew :: BEL.Env = HM.fromList [("CAT", Aeson.String "animals")]
 
     av1 <- BEL.render envNew (Aeson.String "") (BEL.partitions "{{10 * 2}}")
@@ -70,15 +59,6 @@ test1 = testCase "render url parts" $ do
         (Aeson.String "20.0", Aeson.String "score 100.0", Aeson.String "https://kernel.org/animals/route.php?prefilt=9&lim=10.0&filt=another") -> pure ()
         all -> assertFailure $ show all
 
-test2 :: TestTree
-test2 = testCase "partition sentence" $ do
-    let parted = BEL.partitions "been up for {{dur}} minutes."
-
-    case parted == [BEL.R "been up for ", BEL.L "dur", BEL.R " minutes."] of
-        True -> pure ()
-        _ -> assertFailure $ show parted
-
--- ??: testN pratt arith
 test3 :: TestTree
 test3 = testCase "arith basic" $ do
     let envNew :: BEL.Env = HM.fromList [("margin", Aeson.Number 3)]
@@ -90,31 +70,21 @@ test3 = testCase "arith basic" $ do
         (Aeson.Number 2000, Aeson.Number 50) -> pure ()
         all -> assertFailure $ show all
 
-test4' :: TestTree
-test4' = testCase "arith long" $ do
-    let envNew :: BEL.Env = HM.fromList []
-
-    let prog :: Expr = Add (VNum 0) (Mul (VNum 3) (VNum 3))
-    -- let matched = finalValue envNew $ match envNew prog
-
-    evaled <- BEL.eval envNew "9"
-
-    case evaled of
-        VNum 9 -> pure ()
-        all -> assertFailure $ show all
-
 test4 :: TestTree
-test4 = testCase "arith long" $ do
-    let envNew :: BEL.Env = HM.fromList []
+test4 = testCase "arith nest" $ do
+    let av0 = finalMatch $ Add (VNum 0) (Mul (VNum 3) (VNum 3))
+        av1 = finalMatch $ Add (VNum 3) (Mul (VNum 50) (VNum 2))
 
-    let prog :: Expr = Add (VNum 0) (Mul (VNum 3) (VNum 3))
-    let matched = finalValue envNew $ match envNew prog
-
-    evaled <- evalValue envNew "9"
-
-    case (matched, evaled) of
-        (Aeson.Number 9, Aeson.Number 9) -> pure ()
+    case (av0, av1) of
+        (Aeson.Number 9, Aeson.Number 103) -> pure ()
         all -> assertFailure $ show all
+
+    where
+    finalMatch :: Expr -> Aeson.Value
+    finalMatch prog = finalValue envNew $ match envNew prog
+
+    envNew :: BEL.Env
+    envNew = HM.fromList []
 
 test5 :: TestTree
 test5 = testCase "bool literals" $ do
@@ -125,22 +95,13 @@ test5 = testCase "bool literals" $ do
         (VBool True, VBool False) -> pure ()
         all -> assertFailure $ show all
 
-testM :: TestTree
-testM = testCase "" $ do
+test6 :: TestTree
+test6 = testCase "assertion line" $ do
     av0 <-  BEL.eval HM.empty "200 !=  200"
     av1 <-  BEL.eval HM.empty "14 ==  14"
 
     case (av0, av1) of
         (VBool False, VBool True) -> pure ()
-        all -> assertFailure $ show all
-
-test6 :: TestTree
-test6 = testCase "assertion line" $ do
-    av0 <-  evalValue HM.empty "200 !=  200"
-    av1 <-  evalValue HM.empty "14 ==  14"
-
-    case (av0, av1) of
-        (Aeson.Bool False, Aeson.Bool True) -> pure ()
         all -> assertFailure $ show all
 
 test7 :: TestTree
@@ -152,7 +113,7 @@ test7 = testCase "toExpr unit" $ do
         (VBool True, VBool False) -> pure ()
         els -> assertFailure $ show els
 
--- ??: test aesonQQ json bool literals testN = testCase "jsonpath invocation evals a bool" $ do
+-- ??: test aesonQQ json bool literals test? = testCase "jsonpath invocation evals a bool" $ do
 test8 :: TestTree
 test8 = testCase "jsonpath invocation" $ do
     let root :: Aeson.Value = [aesonQQ| { "data": { "unchecked": 2005 } } |]
@@ -209,20 +170,7 @@ test12 = testCase "today function" $ do
         Aeson.String _ -> pure ()
         _ -> assertFailure $ show av1
 
--- main = do
---     let tokens = case runParser exprP "todo" "14.2 == 14.2  " of
---     -- let tokens = case runParser exprP "todo" "today()" of
---             Right tokens -> trace "test:tokens" tokens
---             Left msg -> trace "test:msg" []
---
---     putStrLn $ show tokens
---
---     let ast :: Expr = asExpr tokens
---     putStrLn $ "ast:\t" ++ show ast
---
---     let result = match ast
---     putStrLn $ "result:\t" ++ show result
-
+-- ??: test? pratt arith
 
 -- main :: IO ()
 -- main = do

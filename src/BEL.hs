@@ -24,7 +24,6 @@ import qualified Data.Vector as Vec
 import           Data.Aeson as Aeson (encode)
 import qualified Data.Aeson.Types as Aeson (Value(..))
 import qualified Data.Aeson.JSONPath as Aeson (query)
--- import           Data.Aeson.QQ.Simple (aesonQQ)
 import qualified Text.Megaparsec.Char as C
 import           Text.Megaparsec ( Parsec, (<|>), some
                                  , anySingle
@@ -46,14 +45,10 @@ toExpr _env [TIdentifier thunk, TParenOpn, TParenCls] = do
     yr <- BEL.ioYear
     dom <- BEL.ioDayOfMonth
     pure $ case thunk of
-        -- "today" -> Data $ Aeson.String (Text.pack tdy)
-        -- "year" -> Data $ Aeson.String (Text.pack yr)
-        -- "dayOfMonth" -> Data $ Aeson.String (Text.pack dom)
         "today" -> VString (Text.pack tdy)
         "year" -> VString (Text.pack yr)
         "dayOfMonth" -> VString (Text.pack dom)
         -- "loremIpsum 5" -> Data $ Aeson.String $ Text.pack $ BEL.loremChars 5
-        -- _ -> Data $ Aeson.Null  ??: must be null or "" is enough
         _ -> VString ""
 
 toExpr env els = pure $ asExpr env els
@@ -62,24 +57,14 @@ toExpr env els = pure $ asExpr env els
 asExpr :: Env -> [Token] -> Expr
 
 asExpr env [TIdentifier t] =
-    -- Data $ case HM.lookup (Text.unpack t) env of
-    --     Just v -> v
-    --     _ -> Aeson.String t
     case HM.lookup (Text.unpack t) env of
-        -- Just (v :: Aeson.Value) -> VString ""
         Just (one :: Aeson.Value) -> case one of
             Aeson.Bool v -> VBool v
             Aeson.String v -> VString v
             Aeson.Number v -> VNum v
             av -> trace (show av) (VString "else")
-            -- av -> VString ("asExpr else: " ++ show av)
         Nothing -> VString t
 
-
-        -- Just v -> v
-        -- _ -> Aeson.String t
-
--- asExpr _ [TBool v] = Data $ Aeson.Bool v
 asExpr _ [TBool v] = VBool v
 
 asExpr env [TNum v1, TMult, TIdentifier t] = 
@@ -96,76 +81,25 @@ asExpr env [TNum v1, TPlus, TIdentifier t] =
 
 asExpr env [l@(TIdentifier _), TPlus, r@(TNum _)] = asExpr env [r, TPlus, l]
 
--- asExpr _ [TNum v1, TPlus, TNum v2] = Data $ Aeson.Number (fromFloatDigits $ v1 + v2)
--- asExpr _ [TNum v1, TMult, TNum v2] = Data $ Aeson.Number (fromFloatDigits $ v1 * v2)
 asExpr _ [TNum v1, TPlus, TNum v2] = VNum (fromFloatDigits $ v1 + v2)
 asExpr _ [TNum v1, TMult, TNum v2] = VNum (fromFloatDigits $ v1 * v2)
 
--- Eq (Data $ Aeson.String v1) (Data $ Aeson.String v2)
-
--- asExpr _ [TQuoted v1,     TEq, TQuoted v2] =     Data $ Aeson.Bool (v1 == v2)
 asExpr _ [TQuoted v1,     TEq, TQuoted v2] =     VBool (v1 == v2)
 asExpr env [TQuoted v1,     TEq, TIdentifier v2] = asExpr env [TIdentifier v2, TEq, TQuoted v1]
 asExpr env [TIdentifier ti, TEq, TQuoted tq] =
     case HM.lookup (Text.unpack ti) env of
-        -- Nothing -> Data $ Aeson.Bool False
-        -- Just v -> Data $ Aeson.Bool (v == Aeson.String tq)
         Nothing -> VBool False
         Just v -> VBool (v == Aeson.String tq)
 
 asExpr env [lhs@(TIdentifier _), TEq, rhs@(TIdentifier _)] =
-    -- Data $ Aeson.Bool (unrefEqual env (lhs, rhs))
     VBool (unrefEqual env (lhs, rhs))
 
--- asExpr _ [TNum v1, TEq, TNum v2] = Eq (Data $ Aeson.Number (fromFloatDigits v1)) (Data $ Aeson.Number (fromFloatDigits v2))
 asExpr _ [TNum v1, TEq, TNum v2] = Eq (VNum (fromFloatDigits v1)) (VNum (fromFloatDigits v2))
--- asExpr _ [TNum v1, TNeq, TNum v2] = Data $ Aeson.Bool (v1 /= v2)
 asExpr _ [TNum v1, TNeq, TNum v2] = VBool (v1 /= v2)
--- asExpr _ [TJsonpath, TQuoted t] = App (Fn "jsonpath") (Data $ Aeson.String t)
 asExpr _ [TJsonpath, TQuoted t] = App (Fn "jsonpath") (VString t)
 
 asExpr _ [TNum v] = VNum (fromFloatDigits v)
 asExpr _ toks = VString (Text.pack $ show toks)
-
--- -- The pratt parsing technique.
--- asExpr _env tokens = fst $ parseExpr tokens 0
---     where
---     parseExpr :: [Token] -> Int -> (Expr, [Token])
---     parseExpr toks minPrec = 
---       let (lhs, toks1) = parsePrimary toks
---       in parseExpr' lhs toks1 minPrec
---     
---     parseExpr' :: Expr -> [Token] -> Int -> (Expr, [Token])
---     parseExpr' lhs [] _ = (lhs, [])
---     parseExpr' lhs (op:rest) minPrec
---       | prec op >= minPrec =
---           let (rhs, rest') = parseExpr rest (prec op + 1)
---               lhs' = applyOp op lhs rhs
---           in parseExpr' lhs' rest' minPrec
---       | otherwise = (lhs, op:rest)
---     
---     parsePrimary :: [Token] -> (Expr, [Token])
---     parsePrimary (TNum n : rest) = (Data $ Aeson.Number (fromFloatDigits n), rest)
---     -- parsePrimary (TIdentifier x : rest) = (EVar x, rest)
---     -- ??
---     -- parsePrimary (TNum n : rest) = (ENum n, rest)
---     -- parsePrimary (TIdentifier x : rest) = (EVar x, rest)
---     parsePrimary _ = error "Expected primary expression"
---     
---     prec :: Token -> Int
---     prec TPlus = 1
---     prec TMinus = 1
---     prec TMult = 2
---     prec TDiv = 2
---     prec _ = 0
---     
---     applyOp :: Token -> Expr -> Expr -> Expr
---     applyOp TPlus  l r = Add l r
---     applyOp TMinus l r = Sub l r
---     applyOp TMult  l r = Mul l r
---     applyOp TDiv   l r = Div l r
---     applyOp _ _ _ = undefined
-
 
 -- True iff both TIdentifier found and the values match.
 unrefEqual :: Env -> (Token, Token) -> Bool
@@ -201,16 +135,6 @@ show' t = trimQuotes $ show t
 
 
 
--- First assume that Aeson.Value here should distinct Aeson.Number and Aeson.String because
--- `eval`ed text is stored to Env; might look through it for arith.
--- eval :: Env -> Text -> IO Aeson.Value
--- eval env input =
---     case runParser exprP "" input of
---         Left _ -> pure $ Aeson.String input
---         Right (tokens :: [Token]) -> do
---             e <- toExpr env tokens
---             pure $ finalValue env (match env e)
-
 eval :: Env -> Text -> IO Expr
 eval env input =
     case runParser exprP "" input of
@@ -227,12 +151,6 @@ finalValue env (VString k) =
         Just v -> v
         Nothing -> Aeson.String k
 
--- finalValue env (Data x@(Aeson.String k)) =
---     case HM.lookup (Text.unpack k) env of
---         Just v -> v
---         Nothing -> x
-
--- finalValue _ (Data final) = final
 finalValue _ (VBool s) = Aeson.Bool s
 finalValue _ (VNum s) = Aeson.Number s
 finalValue _ e = Aeson.String (Text.pack $ show e)
@@ -262,38 +180,24 @@ match env = go
     where
     go :: Expr -> Expr
 
-    -- go final@(Data _) = final
     go final@(VNum _) = final
 
-    -- go (Neg (Data (Aeson.Bool b))) = Data (Aeson.Bool (not b))
     go (Neg (VBool b)) = VBool $ not b
     go (Neg e) = go (Neg (go e))
 
-    -- go (Eq (Data v1) (Data v2)) = Data (Aeson.Bool (v1 == v2))
     go (Eq v1 v2) = VBool (v1 == v2)
     go (Eq e1 e2) = go (Eq (go e1) (go e2))
     go (Neq e1 e2) = go (Neg (Eq e1 e2))
 
-    -- go (App (Fn "ident") arg@(Data _)) = arg
-
-    -- go (App (Fn "jsonpath") (Data (Aeson.String q))) =
-    --     case HM.lookup "RESP_BODY" env of
-    --         Nothing -> Data $ Aeson.String ""
-    --         Just root -> case queryBody (Text.unpack q) root of
-    --             Nothing -> Data $ Aeson.String ""
-    --             Just one -> Data one
     go (App (Fn "jsonpath") (VString q)) =
         case HM.lookup "RESP_BODY" env of
             Nothing -> VString ""
             Just root -> case queryBody (Text.unpack q) root of
                 Nothing -> VString ""
-                -- Just (one :: Aeson.Value) -> Data one
                 Just (one :: Aeson.Value) -> case one of
                     Aeson.Bool v -> VBool v
                     Aeson.String v -> VString v
                     Aeson.Number v -> VNum v
-
-    -- go (App (Fn "today") _) = Data (Aeson.String "?? merge thunks")
 
     go (Add (VNum v1) (VNum v2)) = VNum (v1 + v2)
     go (Add e1 e2) =       go (Add (go e1) (go e2))
@@ -363,11 +267,6 @@ data Token =
   | TNum Double
   deriving (Show, Eq)
 
-
--- bool :: Parser [Token]
--- bool = trace "bool entry.." $ try $ do
---     b <- tokenFalse <|> tokenTrue
---     trace "bool exit.." $ pure [b]
 
 boolP :: Parser Token
 boolP = choice
@@ -468,20 +367,6 @@ needsEvalP = try $ do
     pure (L $ Text.pack w)
 
 
--- render env (Aeson.String "paragraph so far") [Right "."]
--- impureRenderTemplate :: Env -> Text -> IO (Either String Text)
--- BEL internal error
--- hh internal error
--- best effort template
--- input left intact
---
--- {{today()}}
--- {{sentence with space}}
--- {{unclosed
--- hello {{name}}
--- hello {{firstname}} {{undefined}} !
--- today()
-
 partitions :: Text -> [Part]
 partitions input =
     case runParser partsP "" input of
@@ -490,30 +375,6 @@ partitions input =
         Right parts -> parts
 
 -- Argument either needs evaluation (Left) or already just "Right".
--- render :: Env -> Aeson.Value -> [Part] -> IO Aeson.Value
--- render _env accStr [] =
---     pure accStr
---
--- render env (Aeson.String acc) ((R t):rest) =
---     let grow :: Text = Text.concat [acc, t] in
---     render env (Aeson.String grow) rest
---
--- render env (Aeson.String acc) ((L t):rest) = do
---     evaled :: Aeson.Value <- eval env t
---     evale  :: Expr <- eval2 env t
---
---     -- render necessitates for effective final values to be string.
---     let str = case evaled of
---             Aeson.String txt -> show' txt
---             Aeson.Object obj -> show obj
---             Aeson.Number n -> show n  -- ??: present point zero as (show n)[:-2]
---             _ -> ("unhandled render L" :: String)
---
---     let ss :: Aeson.Value = Aeson.String $ Text.concat [acc, Text.pack str]
---     render env ss rest
---
--- render _ _ _ = pure $ Aeson.String ""
-
 render :: Env -> Aeson.Value -> [Part] -> IO Aeson.Value
 render _env accStr [] =
     pure accStr
@@ -537,7 +398,7 @@ render env (Aeson.String acc) ((L t):rest) = do
     let ss :: Aeson.Value = Aeson.String $ Text.concat [acc, Text.pack str]
     render env ss rest
 
-render _ _ _ = pure $ Aeson.String ""
+-- render _ _ _ = pure $ Aeson.String ""
 
 
 identifier :: Parser Text
