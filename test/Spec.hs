@@ -20,7 +20,7 @@ evalValue env input = do
 
 main :: IO ()
 main = defaultMain $ testGroup "Happy tests"
-    -- [ test9 ]
+    -- [ test13 ]
 
   [ test0
   , test1
@@ -35,6 +35,7 @@ main = defaultMain $ testGroup "Happy tests"
   , test10
   , test11
   , test12
+  , test13
   ]
 
 test0 :: TestTree
@@ -172,7 +173,15 @@ test12 = testCase "today function" $ do
         Aeson.String _ -> pure ()
         _ -> assertFailure $ show av1
 
--- ??: test? pratt arith
+test13 :: TestTree
+test13 = testCase "curly braces behavior" $ do
+    let p1 = BEL.partitions "foo { bar"
+    let p2 = BEL.partitions "foo \\{ bar"
+
+    case (p1, p2) of
+        _ -> assertFailure $ "p1: " ++ show p1 ++ "\np2: " ++ show p2
+
+
 
 -- main :: IO ()
 -- main = do
