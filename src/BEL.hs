@@ -35,7 +35,7 @@ import           Text.Megaparsec ( Parsec, (<|>), some
 
 import Control.Applicative (empty)
 import qualified Text.Megaparsec.Char.Lexer as L
-import Data.Scientific (Scientific)
+import Data.Scientific (Scientific, floatingOrInteger)
 
 type Env = HM.HashMap String Aeson.Value
 
@@ -418,19 +418,19 @@ render env (Aeson.String acc) ((R t):rest) =
     render env (Aeson.String grow) rest
 
 render env (Aeson.String acc) ((L t):rest) = do
-    -- evaled :: Aeson.Value <- eval env t
-    evale  :: Expr <- eval env t
-    let evaled = finalValue env evale
+    evaled :: Expr <- eval env t
 
     -- render necessitates for effective final values to be string.
-    let str = case evaled of
+    let str = case finalValue env evaled of
             Aeson.String txt -> show' txt
             Aeson.Object obj -> show obj
-            Aeson.Number n -> show n  -- ??: present point zero as (show n)[:-2]
+            Aeson.Number n -> case floatingOrInteger n of
+                                  Right (i :: Integer) -> show i
+                                  Left (_ :: Double)   -> show n
             _ -> ("unhandled render L" :: String)
 
-    let ss :: Aeson.Value = Aeson.String $ Text.concat [acc, Text.pack str]
-    render env ss rest
+    let av = Aeson.String $ Text.concat [acc, Text.pack str]
+    render env av rest
 
 -- render _ _ _ = pure $ Aeson.String ""
 

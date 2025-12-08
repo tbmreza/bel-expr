@@ -58,7 +58,7 @@ test2 = testCase "render template parts" $ do
     av3 <- BEL.render envNew (Aeson.String "") (BEL.partitions "https://kernel.org/{{CAT}}/route.php?prefilt=9&lim={{10}}&filt=another")
 
     case (av1, av2, av3) of
-        (Aeson.String "20.0", Aeson.String "score 100.0", Aeson.String "https://kernel.org/animals/route.php?prefilt=9&lim=10.0&filt=another") -> pure ()
+        (Aeson.String "20", Aeson.String "score 100", Aeson.String "https://kernel.org/animals/route.php?prefilt=9&lim=10&filt=another") -> pure ()
         all -> assertFailure $ show all
 
 test3 :: TestTree
