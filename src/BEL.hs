@@ -384,14 +384,34 @@ exprP = try $ do
 
 
 partsP :: Parser [Part]
-partsP = do
-    many ((try needsEvalP) <|> literalP)
+partsP = many $ choice
+    [ try needsEvalP
+    , try escapedBraceP
+    , literalP
+    , singleBraceP
+    , backslashP
+    ]
 
 -- The R parser.
 literalP :: Parser Part
-literalP = try $ do
-    t <- takeWhile1P Nothing (/= '{')  -- ??: test user escape open curly
+literalP = do
+    t <- takeWhile1P Nothing (\c -> c /= '{' && c /= '\\')
     pure (R t)
+
+escapedBraceP :: Parser Part
+escapedBraceP = do
+    _ <- C.string "\\{"
+    pure (R "{")
+
+singleBraceP :: Parser Part
+singleBraceP = do
+    _ <- C.char '{'
+    pure (R "{")
+
+backslashP :: Parser Part
+backslashP = do
+    _ <- C.char '\\'
+    pure (R "\\")
 
 -- The L parser.
 needsEvalP :: Parser Part

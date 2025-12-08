@@ -178,9 +178,11 @@ test13 = testCase "curly braces behavior" $ do
     let p1 = BEL.partitions "foo { bar"
     let p2 = BEL.partitions "foo \\{ bar"
 
-    case (p1, p2) of
-        _ -> assertFailure $ "p1: " ++ show p1 ++ "\np2: " ++ show p2
+    let expected = [BEL.R "foo ", BEL.R "{", BEL.R " bar"]
 
+    case (p1 == expected, p2 == expected) of
+        (True, True) -> pure ()
+        all -> assertFailure $ show all
 
 
 -- main :: IO ()
