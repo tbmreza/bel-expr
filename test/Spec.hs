@@ -20,7 +20,7 @@ evalValue env input = do
 
 main :: IO ()
 main = defaultMain $ testGroup "Happy tests"
-    -- [ test13 ]
+    -- [ test8 ]
 
   [ test0
   , test1
@@ -116,21 +116,23 @@ test7 = testCase "toExpr unit" $ do
         (VBool True, VBool False) -> pure ()
         els -> assertFailure $ show els
 
--- ??: test aesonQQ json bool literals test? = testCase "jsonpath invocation evals a bool" $ do
+-- PICKUP test aesonQQ json bool literals test? = testCase "jsonpath invocation evals a bool" $ do
+-- "jsonpath access" "jsonpath in expr"
 test8 :: TestTree
 test8 = testCase "jsonpath invocation" $ do
     let root :: Aeson.Value = [aesonQQ| { "data": { "unchecked": 2005 } } |]
-    let envNew :: BEL.Env = HM.fromList [("year", Aeson.String "2025"), ("RESP_BODY", root)]
+        envNew :: BEL.Env = HM.fromList [("year", Aeson.String "2025"), ("RESP_BODY", root)]
 
     -- jsonpath "$.data.unchecked" == 2005
     let prog1 = Eq (App (Fn "jsonpath") (VString "$.data.unchecked")) (VNum 2005)
-    let prog2 = App (Fn "jsonpath") (VString "$.data.unchecked")
+        prog2 = App (Fn "jsonpath") (VString "$.data.unchecked")
 
     case (match envNew prog1, match envNew prog2) of
-        (VBool False, VNum 2005) -> pure ()  -- ?? bool sus
+        -- (VBool True, VNum 2005) -> pure ()
         all -> assertFailure $ show all
 
--- ?? chance it's stack overflow
+    -- case (match envNew )
+
 test9 :: TestTree
 test9 = testCase "arith precedence" $ do
     -- 3 + 4 * 5 = 23
