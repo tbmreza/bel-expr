@@ -33,7 +33,8 @@ library
       src
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
   build-depends:
-      aeson
+      QuickCheck
+    , aeson
     , aeson-jsonpath >=0.3.0.2 && <0.4.0.0
     , base >=4.7 && <5
     , bytestring
@@ -42,6 +43,7 @@ library
     , random
     , regex-posix
     , scientific
+    , tasty-quickcheck
     , text
     , time
     , transformers
@@ -57,7 +59,8 @@ executable bel-expr-exe
       app
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      aeson
+      QuickCheck
+    , aeson
     , aeson-jsonpath >=0.3.0.2 && <0.4.0.0
     , base >=4.7 && <5
     , bel-expr
@@ -67,6 +70,7 @@ executable bel-expr-exe
     , random
     , regex-posix
     , scientific
+    , tasty-quickcheck
     , text
     , time
     , transformers
@@ -83,7 +87,8 @@ test-suite bel-expr-test
       test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      aeson
+      QuickCheck
+    , aeson
     , aeson-jsonpath >=0.3.0.2 && <0.4.0.0
     , base >=4.7 && <5
     , bel-expr
@@ -95,6 +100,7 @@ test-suite bel-expr-test
     , scientific
     , tasty
     , tasty-hunit
+    , tasty-quickcheck
     , text
     , time
     , transformers

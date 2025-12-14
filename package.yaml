@@ -34,6 +34,8 @@ dependencies:
 - scientific
 - aeson-jsonpath >= 0.3.0.2 && < 0.4.0.0
 - vector
+- QuickCheck
+- tasty-quickcheck
 
 ghc-options:
 - -Wall

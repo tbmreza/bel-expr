@@ -220,8 +220,7 @@ match env = go
     go (Neg (VBool b)) = VBool $ not b
     go (Neg e) = go (Neg (go e))
 
-    go (Eq v1 v2) = VBool (v1 == v2)
-    go (Eq e1 e2) = go (Eq (go e1) (go e2))
+    go (Eq e1 e2) = VBool (go e1 == go e2)
     go (Neq e1 e2) = go (Neg (Eq e1 e2))
 
     go (App (Fn "jsonpath") (VString q)) =

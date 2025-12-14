@@ -4,6 +4,8 @@
 
 import Test.Tasty
 import Test.Tasty.HUnit
+import Test.Tasty.QuickCheck hiding (Fn)
+import Test.QuickCheck hiding (Fn)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Aeson.Types as Aeson (Value(..))
 import           Data.Aeson.QQ.Simple (aesonQQ)
@@ -11,6 +13,7 @@ import           Data.Aeson.QQ.Simple (aesonQQ)
 import qualified BEL
 import BEL
 import Data.Text (Text)
+import qualified Data.Text as Text
 
 -- ??: don define a new callsite in tests code
 evalValue :: BEL.Env -> Text -> IO Aeson.Value
@@ -19,24 +22,41 @@ evalValue env input = do
     pure $ BEL.finalValue env e
 
 main :: IO ()
-main = defaultMain $ testGroup "Happy tests"
+main = defaultMain $ testGroup "Tests"
     -- [ test8 ]
 
-  [ test0
-  , test1
-  , test2
-  , test3
-  , test4
-  , test5
-  , test6
-  , test7
-  , test8
-  , test9
-  , test10
-  , test11
-  , test12
-  , test13
+  [ testGroup "Examples" [ test0
+                         , test1 , test2 , test3 , test4 , test5 , test6
+                         , test7 , test8 , test9 , test10 , test11 , test12
+                         , test13
+                         ]
+  , testGroup "Properties" [ testProperty "eval doesn't crash" prop_eval_doesnt_crash
+                           , testProperty "render doesn't crash" prop_render_doesnt_crash
+                           , testProperty "render identity simple" prop_render_identity_simple
+                           ]
   ]
+
+prop_eval_doesnt_crash :: String -> Property
+prop_eval_doesnt_crash input = ioProperty $ do
+    _ <- BEL.eval HM.empty (Text.pack input)
+    pure True
+
+prop_render_doesnt_crash :: String -> Property
+prop_render_doesnt_crash input = ioProperty $ do
+    let parts = BEL.partitions (Text.pack input)
+    val <- BEL.render HM.empty (Aeson.String "") parts
+    case val of
+        Aeson.String _ -> pure True
+        _ -> pure False
+
+prop_render_identity_simple :: Property
+prop_render_identity_simple = forAll (arbitrary `suchThat` isSimple) $ \input -> ioProperty $ do
+    let txt = Text.pack input
+    let parts = BEL.partitions txt
+    val <- BEL.render HM.empty (Aeson.String "") parts
+    pure $ val == Aeson.String txt
+  where
+    isSimple s = not $ any (\c -> c `elem` ("{}\\"::String)) s
 
 test0 :: TestTree
 test0 = testCase "part kinds" $ do
@@ -128,7 +148,7 @@ test8 = testCase "jsonpath invocation" $ do
         prog2 = App (Fn "jsonpath") (VString "$.data.unchecked")
 
     case (match envNew prog1, match envNew prog2) of
-        -- (VBool True, VNum 2005) -> pure ()
+        (VBool True, VNum 2005) -> pure ()
         all -> assertFailure $ show all
 
     -- case (match envNew )
@@ -185,10 +205,3 @@ test13 = testCase "curly braces behavior" $ do
     case (p1 == expected, p2 == expected) of
         (True, True) -> pure ()
         all -> assertFailure $ show all
-
-
--- main :: IO ()
--- main = do
---     case parseFloat "-04.14009" of
---         Left _ -> putStrLn "left"
---         Right d -> putStrLn $ show d
