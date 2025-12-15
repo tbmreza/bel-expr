@@ -27,6 +27,7 @@ library
   exposed-modules:
       BEL.BatteriesMain
       BEL
+      BEL.Pratt
   other-modules:
       Paths_bel_expr
   hs-source-dirs:

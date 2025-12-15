@@ -51,6 +51,7 @@ library:
   exposed-modules:
   - BEL.BatteriesMain
   - BEL
+  - BEL.Pratt
 
 executables:
   bel-expr-exe:
