@@ -53,7 +53,12 @@ toExpr _env [TIdentifier thunk, TParenOpn, TParenCls] = do
 
 toExpr env els = do
     let (expr, _) = expression env 0 els
-    pure (match env expr)
+    let res = match env expr
+    case res of
+        EPrint e -> do
+            print e
+            pure e
+        _ -> pure res
 
 -- Pratt Parser Implementation
 
@@ -77,6 +82,10 @@ nud _ (TNum n) rest = (VNum n, rest)
 nud _ (TBool b) rest = (VBool b, rest)
 
 nud _ (TQuoted s) rest = (VString s, rest)
+
+nud env (TIdentifier "debug") rest =
+    let (e, rest') = expression env 0 rest
+    in (App (Fn "debug") e, rest')
 
 nud env (TIdentifier t) rest =
     case HM.lookup (Text.unpack t) env of
@@ -205,6 +214,7 @@ data Expr =
   | Add Expr Expr | Sub Expr Expr | Mul Expr Expr | Div Expr Expr
 
   | App Expr Expr
+  | EPrint Expr
   deriving (Show, Eq)
 
 -- headers: header, cookie
@@ -223,15 +233,7 @@ match env = go
     go (Eq e1 e2) = VBool (go e1 == go e2)
     go (Neq e1 e2) = go (Neg (Eq e1 e2))
 
-    -- go (App (Fn "debug") (VString q)) =
-    --     case HM.lookup "RESP_BODY" env of
-    --         Nothing -> VString ""
-    --         Just root -> case queryBody (Text.unpack q) root of
-    --             Nothing -> VString ""
-    --             Just (one :: Aeson.Value) -> case one of
-    --                 Aeson.Bool v -> VBool v
-    --                 Aeson.String v -> VString v
-    --                 Aeson.Number v -> VNum v
+    go (App (Fn "debug") e) = EPrint (go e)
 
     go (App (Fn "jsonpath") (VString q)) =
         case HM.lookup "RESP_BODY" env of
@@ -263,6 +265,13 @@ jsonpathArg = try $ do
     t <- takeWhile1P Nothing (/= '"')
     _ <- C.char '"'
     pure [TQuoted t]
+
+invocDebug :: Parser [Token]
+invocDebug = try $ do
+    fn <- C.string "debug"
+    sc
+    tokens <- exprP
+    pure (TIdentifier fn : tokens)
 
 invocJsonpath :: Parser [Token]
 invocJsonpath = try $ do
@@ -384,6 +393,7 @@ exprP :: Parser [Token]
 exprP = try $ do
     -- sc
     propP
+    <|> invocDebug
     <|> arithP
     <|> invocationP
     -- <|> numEqNum
