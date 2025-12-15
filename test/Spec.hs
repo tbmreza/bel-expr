@@ -136,8 +136,6 @@ test7 = testCase "toExpr unit" $ do
         (VBool True, VBool False) -> pure ()
         els -> assertFailure $ show els
 
--- PICKUP test aesonQQ json bool literals test? = testCase "jsonpath invocation evals a bool" $ do
--- "jsonpath access" "jsonpath in expr"
 test8 :: TestTree
 test8 = testCase "jsonpath invocation" $ do
     let root :: Aeson.Value = [aesonQQ| { "data": { "unchecked": 2005 } } |]
@@ -150,8 +148,6 @@ test8 = testCase "jsonpath invocation" $ do
     case (match envNew prog1, match envNew prog2) of
         (VBool True, VNum 2005) -> pure ()
         all -> assertFailure $ show all
-
-    -- case (match envNew )
 
 test9 :: TestTree
 test9 = testCase "arith precedence" $ do

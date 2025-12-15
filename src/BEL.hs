@@ -51,9 +51,9 @@ toExpr _env [TIdentifier thunk, TParenOpn, TParenCls] = do
         -- "loremIpsum 5" -> Data $ Aeson.String $ Text.pack $ BEL.loremChars 5
         _ -> VString ""
 
-toExpr env els = 
+toExpr env els = do
     let (expr, _) = expression env 0 els
-    in pure (match env expr)
+    pure (match env expr)
 
 -- Pratt Parser Implementation
 
@@ -222,6 +222,16 @@ match env = go
 
     go (Eq e1 e2) = VBool (go e1 == go e2)
     go (Neq e1 e2) = go (Neg (Eq e1 e2))
+
+    -- go (App (Fn "debug") (VString q)) =
+    --     case HM.lookup "RESP_BODY" env of
+    --         Nothing -> VString ""
+    --         Just root -> case queryBody (Text.unpack q) root of
+    --             Nothing -> VString ""
+    --             Just (one :: Aeson.Value) -> case one of
+    --                 Aeson.Bool v -> VBool v
+    --                 Aeson.String v -> VString v
+    --                 Aeson.Number v -> VNum v
 
     go (App (Fn "jsonpath") (VString q)) =
         case HM.lookup "RESP_BODY" env of
