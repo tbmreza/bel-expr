@@ -233,6 +233,8 @@ match env = go
     go (Eq e1 e2) = VBool (go e1 == go e2)
     go (Neq e1 e2) = go (Neg (Eq e1 e2))
 
+    -- `debug` is a special assertion line that always evaluates to true, main
+    -- functionality being its side effect of printing to stdout.
     go (App (Fn "debug") e) = EPrint (go e)
 
     go (App (Fn "jsonpath") (VString q)) =
@@ -391,13 +393,11 @@ invocationP = try $ do
 
 exprP :: Parser [Token]
 exprP = try $ do
-    -- sc
     propP
     <|> invocDebug
     <|> arithP
     <|> invocationP
-    -- <|> numEqNum
-    <|> invocJsonpath 
+    <|> invocJsonpath
     <|> jsonpathArg
     <|> word
 
