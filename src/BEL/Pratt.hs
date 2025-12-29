@@ -50,6 +50,7 @@ data Expr =
 
 -- Pratt Parser Implementation
 
+-- "Binding power"
 bp :: Token -> Int
 bp TEq = 5
 bp TNeq = 5
@@ -61,6 +62,7 @@ bp TMult = 20
 bp TDiv = 20
 bp _ = 0
 
+-- Null denotation "nud".
 nud :: Env -> Token -> [Token] -> (Expr, [Token])
 
 nud _ (TNum n) rest = (VNum n, rest)
@@ -75,11 +77,14 @@ nud env (TIdentifier "debug") rest =
 
 nud env (TIdentifier t) rest =
     case HM.lookup (Text.unpack t) env of
-        Just (Aeson.Bool v) -> (VBool v, rest)
-        Just (Aeson.String v) -> (VString v, rest)
-        Just (Aeson.Number v) -> (VNum v, rest)
-        Just av -> (trace (show av) (VString "else"), rest)
-        Nothing -> (VString t, rest)
+        Just (Aeson.Bool v) ->   trace "nud Bool"   (VBool v, rest)
+        Just (Aeson.String v) -> trace "nud String" (VString v, rest)
+        Just (Aeson.Number v) -> trace "nud Number" (VNum v, rest)
+
+        -- Just av -> (trace ("t: " ++ show t ++ ";av: " ++ show av) (VString "RESP_BODY", rest))
+        -- ??: why debug EPrint makes sense here in nud
+        Just _av ->              (VString t, rest)
+        Nothing ->               trace "nud Nothing" (VString t, rest)
 
 nud env TJsonpath (TQuoted t : rest) = (App (Fn "jsonpath") (VString t), rest)
 
@@ -91,6 +96,8 @@ nud env TParenOpn rest =
 
 nud _ t _ = (VString (Text.pack $ show [t]), [])
 
+
+-- Left denotation "led".
 led :: Env -> Token -> Expr -> [Token] -> (Expr, [Token])
 
 led env TPlus left rest =
@@ -119,6 +126,7 @@ led env TNeq left rest =
 
 led _ t left rest = (left, t:rest)
 
+-- Right binding power (rbp).
 expression :: Env -> Int -> [Token] -> (Expr, [Token])
 expression env rbp tokens =
     case tokens of

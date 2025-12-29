@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE QuasiQuotes #-}
@@ -9,6 +10,8 @@ module BEL
   -- For testing:
   , toExpr, Token(..), Expr(..), match, finalValue
   ) where
+
+import Debug.Trace
 
 import qualified BEL.BatteriesMain as BEL
 import           BEL.Pratt
@@ -46,12 +49,20 @@ toExpr _env [TIdentifier thunk, TParenOpn, TParenCls] = do
         _ -> VString ""
 
 toExpr env els = do
-    let (expr, _) = expression env 0 els
-    let res = match env expr
+    let (expr, _els) = expression env 0 els
+        res = match env expr
     case res of
-        EPrint e -> do
-            print e
+
+        EPrint e@(VString s) -> do
+            let tmp = trace ("") $ HM.lookupDefault (Aeson.String "tmp oops") (Text.unpack s) env
+            print (trace ("gotcha" ++ show e) tmp)
             pure e
+
+        EPrint e -> do
+            -- -- print tmp
+            -- print (trace ("epe: " ++ show e) tmp)
+            pure e
+
         _ -> pure res
 
 
@@ -126,6 +137,7 @@ match env = go
                     Aeson.Bool v -> VBool v
                     Aeson.String v -> VString v
                     Aeson.Number v -> VNum v
+                    _ -> undefined
 
     go (Add (VNum v1) (VNum v2)) = VNum (v1 + v2)
     go (Add e1 e2) =       go (Add (go e1) (go e2))
@@ -339,6 +351,7 @@ render env (Aeson.String acc) ((L t):rest) = do
     render env av rest
 
 -- render _ _ _ = pure $ Aeson.String ""
+render _ _ _ = undefined
 
 
 identifier :: Parser Text
