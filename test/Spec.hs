@@ -28,7 +28,7 @@ main = defaultMain $ testGroup "Tests"
   [ testGroup "Examples" [ test0
                          , test1 , test2 , test3 , test4 , test5 , test6
                          , test7 , test8 , test9 , test10 , test11 , test12
-                         , test13 , test14
+                         , test13 , test14 , test15
                          ]
   -- , testGroup "Properties" [ testProperty "eval doesn't crash" prop_eval_doesnt_crash
   --                          , testProperty "render doesn't crash" prop_render_doesnt_crash
@@ -212,5 +212,26 @@ test14 = testCase "object equality" $ do
     case res of
         VBool True -> pure ()
         _ -> assertFailure $ "Expected True, got: " ++ show res
+
+-- (auto)
+test15 :: TestTree
+test15 = testCase "array and null values" $ do
+    let arr :: Aeson.Value = [aesonQQ| [1, 2, 3] |]
+        nul :: Aeson.Value = Aeson.Null
+        env = HM.fromList [("a", arr), ("n", nul), ("a2", arr), ("n2", nul)]
+
+    -- Check equality
+    res1 <- BEL.eval env "a == a2"
+    res2 <- BEL.eval env "n == n2"
+    res3 <- BEL.eval env "a != n"
+    
+    -- Check value retrieval
+    valA <- evalValue env "a"
+    valN <- evalValue env "n"
+
+    case (res1, res2, res3, valA, valN) of
+        (VBool True, VBool True, VBool True, vArr, vNull) 
+            | vArr == arr && vNull == nul -> pure ()
+        results -> assertFailure $ "Failed array/null test: " ++ show results
 
 

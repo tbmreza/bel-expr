@@ -33,6 +33,8 @@ data Token =
 data Expr =
     VBool !Bool
   | VObj !Aeson.Object
+  | VArray !Aeson.Array
+  | VNull
   | VString !Text
   | VNum  !Scientific
 
@@ -77,15 +79,13 @@ nud env (TIdentifier "debug") rest =
 
 nud env (TIdentifier t) rest =
     case HM.lookup (Text.unpack t) env of
-        Just (Aeson.Bool v) ->   trace "nud Bool"   (VBool v, rest)
-        Just (Aeson.String v) -> trace "nud String" (VString v, rest)
-        Just (Aeson.Number v) -> trace "nud Number" (VNum v, rest)
+        Just (Aeson.Bool v) ->   (VBool v, rest)
+        Just (Aeson.String v) -> (VString v, rest)
+        Just (Aeson.Number v) -> (VNum v, rest)
         Just (Aeson.Object v) -> (VObj v, rest)
-
-        -- Just av -> (trace ("t: " ++ show t ++ ";av: " ++ show av) (VString "RESP_BODY", rest))
-        -- ??: why debug EPrint makes sense here in nud
-        Just _av ->              (VString t, rest)
-        Nothing ->               trace "nud Nothing" (VString t, rest)
+        Just (Aeson.Array v) ->  (VArray v, rest)
+        Just Aeson.Null ->       (VNull, rest)
+        Nothing ->               (VString t, rest)
 
 nud env TJsonpath (TQuoted t : rest) = (App (Fn "jsonpath") (VString t), rest)
 

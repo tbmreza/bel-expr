@@ -109,6 +109,8 @@ finalValue env (VString k) =
 finalValue _ (VBool s) = Aeson.Bool s
 finalValue _ (VNum s) = Aeson.Number s
 finalValue _ (VObj s) = Aeson.Object s
+finalValue _ (VArray s) = Aeson.Array s
+finalValue _ VNull = Aeson.Null
 finalValue _ e = Aeson.String (Text.pack $ show e)
 
 
@@ -138,7 +140,9 @@ match env = go
                     Aeson.Bool v -> VBool v
                     Aeson.String v -> VString v
                     Aeson.Number v -> VNum v
-                    _ -> undefined
+                    Aeson.Object v -> VObj v
+                    Aeson.Array v -> VArray v
+                    Aeson.Null -> VNull
 
     go (Add (VNum v1) (VNum v2)) = VNum (v1 + v2)
     go (Add e1 e2) =       go (Add (go e1) (go e2))
