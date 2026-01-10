@@ -108,6 +108,7 @@ finalValue env (VString k) =
 
 finalValue _ (VBool s) = Aeson.Bool s
 finalValue _ (VNum s) = Aeson.Number s
+finalValue _ (VObj s) = Aeson.Object s
 finalValue _ e = Aeson.String (Text.pack $ show e)
 
 
@@ -184,6 +185,7 @@ queryBody q root =
             Just (one, _) -> Just one
 
 type NeedsEval = Text
+-- ?? haskell type system: some Texts are semicolon delimited cookies
 data Part =
     L NeedsEval
   | R Text

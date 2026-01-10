@@ -32,7 +32,7 @@ data Token =
 
 data Expr =
     VBool !Bool
-  -- | VObj  -- https://hackage.haskell.org/package/aeson-2.2.3.0/docs/Data-Aeson.html#t:Value
+  | VObj !Aeson.Object
   | VString !Text
   | VNum  !Scientific
 
@@ -80,6 +80,7 @@ nud env (TIdentifier t) rest =
         Just (Aeson.Bool v) ->   trace "nud Bool"   (VBool v, rest)
         Just (Aeson.String v) -> trace "nud String" (VString v, rest)
         Just (Aeson.Number v) -> trace "nud Number" (VNum v, rest)
+        Just (Aeson.Object v) -> (VObj v, rest)
 
         -- Just av -> (trace ("t: " ++ show t ++ ";av: " ++ show av) (VString "RESP_BODY", rest))
         -- ??: why debug EPrint makes sense here in nud
