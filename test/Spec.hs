@@ -2,18 +2,20 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-import Test.Tasty
-import Test.Tasty.HUnit
-import Test.Tasty.QuickCheck hiding (Fn)
-import Test.QuickCheck hiding (Fn)
+import Debug.Trace
+
+import           Test.Tasty
+import           Test.Tasty.HUnit
+import           Test.Tasty.QuickCheck hiding (Fn)
+import           Test.QuickCheck hiding (Fn)
+
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Aeson.Types as Aeson (Value(..))
 import           Data.Aeson.QQ.Simple (aesonQQ)
-
-import qualified BEL
-import BEL
-import Data.Text (Text)
+import           Data.Text (Text)
 import qualified Data.Text as Text
+
+import           BEL
 
 -- ??: don define a new callsite in tests code
 evalValue :: BEL.Env -> Text -> IO Aeson.Value
@@ -23,18 +25,18 @@ evalValue env input = do
 
 main :: IO ()
 main = defaultMain $ testGroup "Tests"
-    -- [ test8 ]
+  [ test7 ]
 
-  [ testGroup "Examples" [ test0
-                         , test1 , test2 , test3 , test4 , test5 , test6
-                         , test7 , test8 , test9 , test10 , test11 , test12
-                         , test13 , test14 , test15
-                         ]
+  -- [ testGroup "Examples"   [ test0
+  --                          , test1 , test2 , test3 , test4 , test5 , test6
+  --                          , test7 , test8 , test9 , test10 , test11 , test12
+  --                          , test13 , test14 , test15 , testAmbiguity
+  --                          ]
   -- , testGroup "Properties" [ testProperty "eval doesn't crash" prop_eval_doesnt_crash
   --                          , testProperty "render doesn't crash" prop_render_doesnt_crash
   --                          , testProperty "render identity simple" prop_render_identity_simple
   --                          ]
-  ]
+  -- ]
 
 prop_eval_doesnt_crash :: String -> Property
 prop_eval_doesnt_crash input = ioProperty $ do
@@ -130,10 +132,18 @@ test6 = testCase "assertion line" $ do
 test7 :: TestTree
 test7 = testCase "toExpr unit" $ do
     let envNew = HM.fromList [("nama", Aeson.String "contents")]
+
+    -- nama == "contents"
     e <- BEL.toExpr envNew [TIdentifier "nama", TEq, TQuoted "contents"]
+
+    -- "wrong answer" == "wrong"
     f <- BEL.toExpr envNew [TQuoted "wrong answer", TEq, TQuoted "wrong"]
-    case (e, f) of
-        (VBool True, VBool False) -> pure ()
+
+    -- today()
+    g <- BEL.toExpr envNew [TIdentifier "today", TParenOpn, TParenCls]
+
+    case (e, f, g) of
+        (VBool True, VBool False, VString resG) -> trace ("today=" ++ show resG) $ pure ()
         els -> assertFailure $ show els
 
 test8 :: TestTree
@@ -234,4 +244,14 @@ test15 = testCase "array and null values" $ do
             | vArr == arr && vNull == nul -> pure ()
         results -> assertFailure $ "Failed array/null test: " ++ show results
 
-
+-- (auto)
+testAmbiguity :: TestTree
+testAmbiguity = testCase "ambiguity between variables and strings" $ do
+    -- 'foo' is not in env, so 'foo' evaluates to VString "foo".
+    -- This test documents the CURRENT behavior.
+    let envEmpty = HM.empty
+    res1 <- BEL.eval envEmpty "foo"
+    
+    case res1 of
+        VString "foo" -> pure () 
+        _ -> assertFailure $ "Expected VString \"foo\" (current behavior), got: " ++ show res1

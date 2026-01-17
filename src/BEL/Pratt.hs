@@ -28,41 +28,41 @@ data Token =
   | TParenOpn | TParenCls
   | TPlus | TMinus | TMult | TDiv
   | TNum Scientific
-  deriving (Show, Eq)
+    deriving (Show, Eq)
 
 data Expr =
-    VBool !Bool
-  | VObj !Aeson.Object
-  | VArray !Aeson.Array
+    VBool   !Bool
+  | VObj    !Aeson.Object
+  | VArray  !Aeson.Array
   | VNull
   | VString !Text
-  | VNum  !Scientific
+  | VNum    !Scientific
 
-  | Fn   String
+  | Fn  String
 
   | Neg Expr
   | Eq  Expr Expr
   | Neq Expr Expr
+  | App Expr Expr
 
   | Add Expr Expr | Sub Expr Expr | Mul Expr Expr | Div Expr Expr
 
-  | App Expr Expr
   | EPrint Expr
-  deriving (Show, Eq)
+    deriving (Show, Eq)
 
 -- Pratt Parser Implementation
 
 -- "Binding power"
 bp :: Token -> Int
-bp TEq = 5
-bp TNeq = 5
-bp TLte = 5
-bp TGte = 5
-bp TPlus = 10
+bp TEq =     5
+bp TNeq =    5
+bp TLte =    5
+bp TGte =    5
+bp TPlus =  10
 bp TMinus = 10
-bp TMult = 20
-bp TDiv = 20
-bp _ = 0
+bp TMult =  20
+bp TDiv =   20
+bp _ =       0
 
 -- Null denotation "nud".
 nud :: Env -> Token -> [Token] -> (Expr, [Token])
@@ -134,15 +134,28 @@ expression env rbp tokens =
         [] -> (VString "", [])
         (t:rest) ->
             let (left, rest') = nud env t rest
-            in loop env rbp left rest'
+            in h env rbp left rest'
 
-loop :: Env -> Int -> Expr -> [Token] -> (Expr, [Token])
-loop env rbp left tokens =
-    case tokens of
-        [] -> (left, [])
-        (t:rest) ->
-            if bp t > rbp
-            then
-                let (newLeft, newRest) = led env t left rest
-                in loop env rbp newLeft newRest
-            else (left, tokens)
+    where
+    h :: Env -> Int -> Expr -> [Token] -> (Expr, [Token])
+    h env rbp left tokens =
+        case tokens of
+            [] -> (left, [])
+            (t:rest) ->
+                if bp t > rbp then
+                    let (newLeft, newRest) = led env t left rest
+                    in h env rbp newLeft newRest
+                else
+                    (left, tokens)
+
+
+-- loop :: Env -> Int -> Expr -> [Token] -> (Expr, [Token])
+-- loop env rbp left tokens =
+--     case tokens of
+--         [] -> (left, [])
+--         (t:rest) ->
+--             if bp t > rbp
+--             then
+--                 let (newLeft, newRest) = led env t left rest
+--                 in loop env rbp newLeft newRest
+--             else (left, tokens)

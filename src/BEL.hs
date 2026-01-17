@@ -13,9 +13,8 @@ module BEL
 
 import Debug.Trace
 
-import qualified BEL.BatteriesMain as BEL
-import           BEL.Pratt
-
+import           Control.Applicative (empty)
+import           Data.Scientific (Scientific, floatingOrInteger)
 import qualified Data.HashMap.Strict as HM
 import           Data.Text (Text)
 import qualified Data.Text as Text
@@ -23,6 +22,7 @@ import           Data.Void (Void)
 import qualified Data.Vector as Vec
 import qualified Data.Aeson as Aeson (Value(..))
 import qualified Data.Aeson.JSONPath as Aeson (query)
+import qualified Text.Megaparsec.Char.Lexer as L
 import qualified Text.Megaparsec.Char as C
 import           Text.Megaparsec ( Parsec, (<|>), some
                                  , anySingle
@@ -32,10 +32,11 @@ import           Text.Megaparsec ( Parsec, (<|>), some
                                  , choice
                                  )
 
-import Control.Applicative (empty)
-import qualified Text.Megaparsec.Char.Lexer as L
-import Data.Scientific (Scientific, floatingOrInteger)
+import qualified BEL.BatteriesMain as BEL
+import           BEL.Pratt
 
+
+-- ??: parametrized fn invocation "loremIpsum 5" -> Data $ Aeson.String $ Text.pack $ BEL.loremChars 5
 toExpr :: Env -> [Token] -> IO Expr
 toExpr _env [TIdentifier thunk, TParenOpn, TParenCls] = do
     tdy <- BEL.ioToday
@@ -45,18 +46,18 @@ toExpr _env [TIdentifier thunk, TParenOpn, TParenCls] = do
         "today" -> VString (Text.pack tdy)
         "year" -> VString (Text.pack yr)
         "dayOfMonth" -> VString (Text.pack dom)
-        -- "loremIpsum 5" -> Data $ Aeson.String $ Text.pack $ BEL.loremChars 5
         _ -> VString ""
 
-toExpr env els = do
-    let (expr, _els) = expression env 0 els
-        res = match env expr
+toExpr env toks = do
+    let (expr, _rest) = expression env 0 toks
+        res :: Expr = match env expr
     case res of
 
         EPrint e@(VString s) -> do
             let tmp = trace ("") $ HM.lookupDefault (Aeson.String "tmp oops") (Text.unpack s) env
             print (trace ("gotcha" ++ show e) tmp)
-            pure e
+            -- pure e
+            pure $ VBool False
 
         EPrint e -> do
             -- -- print tmp
@@ -181,15 +182,25 @@ invocJsonpath = try $ do
 
 -- Expect one matching Value.
 queryBody :: String -> Aeson.Value -> Maybe Aeson.Value
-queryBody q root =
-    case Aeson.query q root of
-        Left _ -> Nothing
-        Right v -> case Vec.uncons v of
-            Nothing -> Nothing
-            Just (one, _) -> Just one
+queryBody q root = case Aeson.query q root of
+    Left _ -> Nothing
+    Right v -> case Vec.uncons v of
+        Nothing -> Nothing
+        Just (one, _) -> Just one
+
+-- (auto)
+newtype CookieString = CookieString Text
+  deriving (Eq, Show)
+
+mkCookieString :: Text -> CookieString
+mkCookieString = CookieString
+
+parseCookies :: CookieString -> [Text]
+parseCookies (CookieString t) = Text.split (== ';') t
+
 
 type NeedsEval = Text
--- ?? haskell type system: some Texts are semicolon delimited cookies
+
 data Part =
     L NeedsEval
   | R Text
