@@ -50,19 +50,18 @@ toExpr _env [TIdentifier thunk, TParenOpn, TParenCls] = do
 
 toExpr env toks = do
     let (expr, _rest) = expression 0 toks
+        -- res :: Expr = EPrint (VString "$.method")
         res :: Expr = match env expr
-    case res of
+    case (trace ("matched:" ++ show res) $ res) of
 
         EPrint e@(VString s) -> do
             let tmp = trace ("") $ HM.lookupDefault (Aeson.String "tmp oops") (Text.unpack s) env
             print (trace ("gotcha" ++ show e) tmp)
             -- pure e
-            pure $ VBool False
+            pure $ VBool True
 
-        EPrint e -> do
-            -- -- print tmp
-            -- print (trace ("epe: " ++ show e) tmp)
-            pure e
+        -- EPrint e -> do
+        --     pure e
 
         _ -> pure res
 
