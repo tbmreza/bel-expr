@@ -25,18 +25,18 @@ evalValue env input = do
 
 main :: IO ()
 main = defaultMain $ testGroup "Tests"
-  [ test7 ]
+  -- [ test7 ]
 
-  -- [ testGroup "Examples"   [ test0
-  --                          , test1 , test2 , test3 , test4 , test5 , test6
-  --                          , test7 , test8 , test9 , test10 , test11 , test12
-  --                          , test13 , test14 , test15 , testAmbiguity
-  --                          ]
+  [ testGroup "Examples"   [ test0
+                           , test1 , test2 , test3 , test4 , test5 , test6
+                           , test7 , test8 , test9 , test10 , test11 , test12
+                           , test13 , test14 , test15 , testAmbiguity
+                           ]
   -- , testGroup "Properties" [ testProperty "eval doesn't crash" prop_eval_doesnt_crash
   --                          , testProperty "render doesn't crash" prop_render_doesnt_crash
   --                          , testProperty "render identity simple" prop_render_identity_simple
   --                          ]
-  -- ]
+  ]
 
 prop_eval_doesnt_crash :: String -> Property
 prop_eval_doesnt_crash input = ioProperty $ do

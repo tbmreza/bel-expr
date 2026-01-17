@@ -49,7 +49,7 @@ toExpr _env [TIdentifier thunk, TParenOpn, TParenCls] = do
         _ -> VString ""
 
 toExpr env toks = do
-    let (expr, _rest) = expression env 0 toks
+    let (expr, _rest) = expression 0 toks
         res :: Expr = match env expr
     case res of
 
@@ -102,11 +102,7 @@ eval env input =
 
 finalValue :: Env -> Expr -> Aeson.Value
 
-finalValue env (VString k) =
-    case HM.lookup (Text.unpack k) env of
-        Just v -> v
-        Nothing -> Aeson.String k
-
+finalValue _ (VString k) = Aeson.String k
 finalValue _ (VBool s) = Aeson.Bool s
 finalValue _ (VNum s) = Aeson.Number s
 finalValue _ (VObj s) = Aeson.Object s
@@ -121,6 +117,16 @@ match env = go
     go :: Expr -> Expr
 
     go final@(VNum _) = final
+
+    go (VIdent t) =
+        case HM.lookup (Text.unpack t) env of
+            Just (Aeson.Bool v) -> VBool v
+            Just (Aeson.String v) -> VString v
+            Just (Aeson.Number v) -> VNum v
+            Just (Aeson.Object v) -> VObj v
+            Just (Aeson.Array v) -> VArray v
+            Just Aeson.Null -> VNull
+            Nothing -> VString t
 
     go (Neg (VBool b)) = VBool $ not b
     go (Neg e) = go (Neg (go e))

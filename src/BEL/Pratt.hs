@@ -37,6 +37,7 @@ data Expr =
   | VNull
   | VString !Text
   | VNum    !Scientific
+  | VIdent  !Text
 
   | Fn  String
 
@@ -65,86 +66,78 @@ bp TDiv =   20
 bp _ =       0
 
 -- Null denotation "nud".
-nud :: Env -> Token -> [Token] -> (Expr, [Token])
+nud :: Token -> [Token] -> (Expr, [Token])
 
-nud _ (TNum n) rest = (VNum n, rest)
+nud (TNum n) rest = (VNum n, rest)
 
-nud _ (TBool b) rest = (VBool b, rest)
+nud (TBool b) rest = (VBool b, rest)
 
-nud _ (TQuoted s) rest = (VString s, rest)
+nud (TQuoted s) rest = (VString s, rest)
 
-nud env (TIdentifier "debug") rest =
-    let (e, rest') = expression env 0 rest
+nud (TIdentifier "debug") rest =
+    let (e, rest') = expression 0 rest
     in (App (Fn "debug") e, rest')
 
-nud env (TIdentifier t) rest =
-    case HM.lookup (Text.unpack t) env of
-        Just (Aeson.Bool v) ->   (VBool v, rest)
-        Just (Aeson.String v) -> (VString v, rest)
-        Just (Aeson.Number v) -> (VNum v, rest)
-        Just (Aeson.Object v) -> (VObj v, rest)
-        Just (Aeson.Array v) ->  (VArray v, rest)
-        Just Aeson.Null ->       (VNull, rest)
-        Nothing ->               (VString t, rest)
+nud (TIdentifier t) rest = (VIdent t, rest)
 
-nud env TJsonpath (TQuoted t : rest) = (App (Fn "jsonpath") (VString t), rest)
+nud TJsonpath (TQuoted t : rest) = (App (Fn "jsonpath") (VString t), rest)
 
-nud env TParenOpn rest =
-    let (e, rest') = expression env 0 rest
+nud TParenOpn rest =
+    let (e, rest') = expression 0 rest
     in case rest' of
         (TParenCls:rest'') -> (e, rest'')
         _ -> (e, rest')
 
-nud _ t _ = (VString (Text.pack $ show [t]), [])
+nud t _ = (VString (Text.pack $ show [t]), [])
 
 
 -- Left denotation "led".
-led :: Env -> Token -> Expr -> [Token] -> (Expr, [Token])
+led :: Token -> Expr -> [Token] -> (Expr, [Token])
 
-led env TPlus left rest =
-    let (right, rest') = expression env 10 rest
+led TPlus left rest =
+    let (right, rest') = expression 10 rest
     in (Add left right, rest')
 
-led env TMinus left rest =
-    let (right, rest') = expression env 10 rest
+led TMinus left rest =
+    let (right, rest') = expression 10 rest
     in (Sub left right, rest')
 
-led env TMult left rest =
-    let (right, rest') = expression env 20 rest
+led TMult left rest =
+    let (right, rest') = expression 20 rest
     in (Mul left right, rest')
 
-led env TDiv left rest =
-    let (right, rest') = expression env 20 rest
+led TDiv left rest =
+    let (right, rest') = expression 20 rest
     in (Div left right, rest')
 
-led env TEq left rest =
-    let (right, rest') = expression env 5 rest
+led TEq left rest =
+    let (right, rest') = expression 5 rest
     in (Eq left right, rest')
 
-led env TNeq left rest =
-    let (right, rest') = expression env 5 rest
+led TNeq left rest =
+    let (right, rest') = expression 5 rest
     in (Neq left right, rest')
 
-led _ t left rest = (left, t:rest)
+led t left rest = (left, t:rest)
 
 -- Right binding power (rbp).
-expression :: Env -> Int -> [Token] -> (Expr, [Token])
-expression env rbp tokens =
+expression :: Int -> [Token] -> (Expr, [Token])
+expression rbp tokens =
     case tokens of
         [] -> (VString "", [])
         (t:rest) ->
-            let (left, rest') = nud env t rest
-            in h env rbp left rest'
+            let (left, rest') = nud t rest
+            in h rbp left rest'
 
     where
-    h :: Env -> Int -> Expr -> [Token] -> (Expr, [Token])
-    h env rbp left tokens =
+    h :: Int -> Expr -> [Token] -> (Expr, [Token])
+    h rbp left tokens =
         case tokens of
             [] -> (left, [])
             (t:rest) ->
                 if bp t > rbp then
-                    let (newLeft, newRest) = led env t left rest
-                    in h env rbp newLeft newRest
+                    let (newLeft, newRest) = led t left rest
+                    in h rbp newLeft newRest
                 else
                     (left, tokens)
 
