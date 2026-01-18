@@ -81,6 +81,7 @@ nud (TIdentifier "debug") rest =
 
 nud (TIdentifier t) rest = (VIdent t, rest)
 
+-- ??: after this is unit tested, replicate in "debug"
 nud TJsonpath (TQuoted t : rest) = (App (Fn "jsonpath") (VString t), rest)
 
 nud TParenOpn rest =

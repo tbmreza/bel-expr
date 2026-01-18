@@ -38,7 +38,13 @@ import           BEL.Pratt
 
 -- ??: parametrized fn invocation "loremIpsum 5" -> ... BEL.loremChars 5
 toExpr :: Env -> [Token] -> IO Expr
--- toExpr _env [TIdentifier thunk, TParenOpn, TParenCls] =
+
+-- PICKUP document pratt; generalize $ @ %
+-- goal/problem: cross concern between toExpr, Pratt.expression, BEL.match
+toExpr _env (TIdentifier "debug" : TQuoted s : []) = do
+    print (finalValue (VString "hardcoded"))
+    pure (VBool True)
+
 toExpr _env (TIdentifier thunk : TParenOpn : TParenCls : []) = do
     case thunk of
         "today" -> do
@@ -54,7 +60,7 @@ toExpr _env (TIdentifier thunk : TParenOpn : TParenCls : []) = do
 
 toExpr env toks = do
     let (expr, _rest) = expression 0 toks
-    let res = match env expr
+        res = match env expr
     case res of
 
         EPrint e -> do
