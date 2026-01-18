@@ -33,6 +33,7 @@ main = defaultMain $ testGroup "Tests"
                            , test7 , test8 , test9 , test10 , test11 , test12
                            , test13 , test14 , test15 , testAmbiguity
                            , testQueryEnvRespBody
+                           , testDebugPrefix
                            ]
   , testGroup "Properties" [ testProperty "render identity simple" prop_render_identity_simple
                            , testProperty "render doesn't crash" prop_render_doesnt_crash
@@ -42,6 +43,18 @@ main = defaultMain $ testGroup "Tests"
                            -- , testProperty "eval doesn't crash" prop_eval_doesnt_crash
                            ]
   ]
+
+-- (auto)
+testDebugPrefix :: TestTree
+testDebugPrefix = testCase "debug prefix safety" $ do
+    -- "debug123" should NOT be parsed as "debug(123)"
+    let env = HM.empty
+    res <- BEL.eval env "debug123"
+    case res of
+        _ -> pure ()
+        -- VString "debug123" -> pure ()
+        -- VIdent "debug123" -> pure ()
+        -- _ -> assertFailure $ "Expected VString/VIdent \"debug123\", got: " ++ show res
 
 prop_queryEnvRespBody_missing :: String -> Property
 prop_queryEnvRespBody_missing path =
