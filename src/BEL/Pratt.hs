@@ -44,6 +44,8 @@ data Expr =
   | Neg Expr
   | Eq  Expr Expr
   | Neq Expr Expr
+  | Lte Expr Expr
+  | Gte Expr Expr
   | App Expr Expr
 
   | Add Expr Expr | Sub Expr Expr | Mul Expr Expr | Div Expr Expr
@@ -117,6 +119,14 @@ led TEq left rest =
 led TNeq left rest =
     let (right, rest') = expression 5 rest
     in (Neq left right, rest')
+
+led TLte left rest =
+    let (right, rest') = expression 5 rest
+    in (Lte left right, rest')
+
+led TGte left rest =
+    let (right, rest') = expression 5 rest
+    in (Gte left right, rest')
 
 led t left rest = (left, t:rest)
 

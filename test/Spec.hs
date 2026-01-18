@@ -33,12 +33,9 @@ main = defaultMain $ testGroup "Tests"
                            , test13 , test14 , test15 , testAmbiguity
                            , testQueryEnvRespBody
                            ]
-  -- , testGroup "Properties" [ testProperty "eval doesn't crash" prop_eval_doesnt_crash
-  --                          , testProperty "render doesn't crash" prop_render_doesnt_crash
-  --                          , testProperty "render identity simple" prop_render_identity_simple
-  --                          ]
-  , testGroup "Properties" [ testProperty "render doesn't crash" prop_render_doesnt_crash
-                           , testProperty "render identity simple" prop_render_identity_simple
+  , testGroup "Properties" [ testProperty "render identity simple" prop_render_identity_simple
+                           , testProperty "render doesn't crash" prop_render_doesnt_crash
+                           -- , testProperty "eval doesn't crash" prop_eval_doesnt_crash
                            ]
   ]
 

@@ -152,6 +152,16 @@ match env = go
     go (Eq e1 e2) = VBool (go e1 == go e2)
     go (Neq e1 e2) = go (Neg (Eq e1 e2))
 
+    go (Lte e1 e2) =
+        case (go e1, go e2) of
+            (VNum n1, VNum n2) -> VBool (n1 <= n2)
+            _ -> VBool False
+
+    go (Gte e1 e2) =
+        case (go e1, go e2) of
+            (VNum n1, VNum n2) -> VBool (n1 >= n2)
+            _ -> VBool False
+
     -- `debug` is a special assertion line that always evaluates to true, main
     -- functionality being its side effect of printing to stdout.
 
