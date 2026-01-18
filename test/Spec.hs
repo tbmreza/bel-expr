@@ -31,6 +31,7 @@ main = defaultMain $ testGroup "Tests"
                            , test1 , test2 , test3 , test4 , test5 , test6
                            , test7 , test8 , test9 , test10 , test11 , test12
                            , test13 , test14 , test15 , testAmbiguity
+                           , testDebug
                            ]
   -- , testGroup "Properties" [ testProperty "eval doesn't crash" prop_eval_doesnt_crash
   --                          , testProperty "render doesn't crash" prop_render_doesnt_crash
@@ -255,3 +256,14 @@ testAmbiguity = testCase "ambiguity between variables and strings" $ do
     case res1 of
         VString "foo" -> pure () 
         _ -> assertFailure $ "Expected VString \"foo\" (current behavior), got: " ++ show res1
+
+testDebug :: TestTree
+testDebug = testCase "debug side effect" $ do
+    -- should print (side effect) and return true.
+    resNum <- BEL.eval HM.empty "debug 5"
+    resBool <- BEL.eval HM.empty "debug true"
+    
+    case (resNum, resBool) of
+        -- (VNum 5, VBool True) -> pure ()
+        (VBool True, VBool True) -> pure ()
+        (n, b) -> assertFailure $ "Debug did not pass through values. Got: " ++ show n ++ ", " ++ show b

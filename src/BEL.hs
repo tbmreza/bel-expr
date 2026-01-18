@@ -36,7 +36,7 @@ import qualified BEL.BatteriesMain as BEL
 import           BEL.Pratt
 
 
--- ??: parametrized fn invocation "loremIpsum 5" -> Data $ Aeson.String $ Text.pack $ BEL.loremChars 5
+-- ??: parametrized fn invocation "loremIpsum 5" -> ... BEL.loremChars 5
 toExpr :: Env -> [Token] -> IO Expr
 toExpr _env [TIdentifier thunk, TParenOpn, TParenCls] = do
     tdy <- BEL.ioToday
@@ -54,14 +54,15 @@ toExpr env toks = do
         res :: Expr = match env expr
     case (trace ("matched:" ++ show res) $ res) of
 
-        EPrint e@(VString s) -> do
-            let tmp = trace ("") $ HM.lookupDefault (Aeson.String "tmp oops") (Text.unpack s) env
-            print (trace ("gotcha" ++ show e) tmp)
-            -- pure e
-            pure $ VBool True
+        -- EPrint e@(VString s) -> do
+        --     let tmp = trace ("") $ HM.lookupDefault (Aeson.String "tmp oops") (Text.unpack s) env
+        --     print (trace ("gotcha" ++ show e) tmp)
+        --     -- pure e
+        --     pure $ VBool False
 
-        -- EPrint e -> do
-        --     pure e
+        EPrint e -> do
+            print (finalValue env e)
+            pure e
 
         _ -> pure res
 
@@ -99,6 +100,7 @@ eval env input =
             pure (match env e)
 
 
+-- ??: git diff  auto VIdent  with goal of removing Env here
 finalValue :: Env -> Expr -> Aeson.Value
 
 finalValue _ (VString k) = Aeson.String k
@@ -135,7 +137,13 @@ match env = go
 
     -- `debug` is a special assertion line that always evaluates to true, main
     -- functionality being its side effect of printing to stdout.
-    go (App (Fn "debug") e) = EPrint (go e)
+
+    -- ??: pattern match when queryBody returns none, then lookup, else literal
+    go (App (Fn "debug") (VString q)) =
+        trace ("if trace is enough:\t" ++ show q) $ VBool True
+
+    go (App (Fn "debug") q) =
+        trace ("if trace is enough:\t" ++ show q) $ VBool True
 
     go (App (Fn "jsonpath") (VString q)) =
         case HM.lookup "RESP_BODY" env of
@@ -143,12 +151,12 @@ match env = go
             Just root -> case queryBody (Text.unpack q) root of
                 Nothing -> VString ""
                 Just (one :: Aeson.Value) -> case one of
-                    Aeson.Bool v -> VBool v
+                    Aeson.Bool v ->   VBool v
                     Aeson.String v -> VString v
                     Aeson.Number v -> VNum v
                     Aeson.Object v -> VObj v
-                    Aeson.Array v -> VArray v
-                    Aeson.Null -> VNull
+                    Aeson.Array v ->  VArray v
+                    Aeson.Null ->     VNull
 
     go (Add (VNum v1) (VNum v2)) = VNum (v1 + v2)
     go (Add e1 e2) =       go (Add (go e1) (go e2))
@@ -190,7 +198,7 @@ queryBody :: String -> Aeson.Value -> Maybe Aeson.Value
 queryBody q root = case Aeson.query q root of
     Left _ -> Nothing
     Right v -> case Vec.uncons v of
-        Nothing -> Nothing
+        Nothing ->       Nothing
         Just (one, _) -> Just one
 
 -- (auto)
