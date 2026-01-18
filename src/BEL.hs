@@ -116,6 +116,15 @@ finalValue _ VNull = Aeson.Null
 finalValue _ e = Aeson.String (Text.pack $ show e)
 
 
+aesonToExpr :: Aeson.Value -> Expr
+aesonToExpr (Aeson.Bool v)   = VBool v
+aesonToExpr (Aeson.String v) = VString v
+aesonToExpr (Aeson.Number v) = VNum v
+aesonToExpr (Aeson.Object v) = VObj v
+aesonToExpr (Aeson.Array v)  = VArray v
+aesonToExpr Aeson.Null       = VNull
+
+
 match :: Env -> Expr -> Expr
 match env = go
     where
@@ -125,12 +134,7 @@ match env = go
 
     go (VIdent t) =
         case HM.lookup (Text.unpack t) env of
-            Just (Aeson.Bool v) -> VBool v
-            Just (Aeson.String v) -> VString v
-            Just (Aeson.Number v) -> VNum v
-            Just (Aeson.Object v) -> VObj v
-            Just (Aeson.Array v) -> VArray v
-            Just Aeson.Null -> VNull
+            Just v -> aesonToExpr v
             Nothing -> VString t
 
     go (Neg (VBool b)) = VBool $ not b
@@ -143,9 +147,16 @@ match env = go
     -- functionality being its side effect of printing to stdout.
 
     -- ??: pattern match when queryBody returns none, then lookup, else literal
+    -- debug $.method
     go (App (Fn "debug") (VString q)) =
-        -- trace ("aif trace is enough:\t" ++ show q) $ VBool True
-        EPrint (VNum 130)
+        -- let queried = VString "POST" in
+        let queried = case HM.lookup "RESP_BODY" env of
+                Nothing -> VString ""
+                Just root -> case queryBody (Text.unpack q) root of
+                    Nothing -> VString ""
+                    Just one -> aesonToExpr one
+        in
+        EPrint queried
 
 
     go (App (Fn "jsonpath") (VString q)) =
@@ -153,13 +164,7 @@ match env = go
             Nothing -> VString ""
             Just root -> case queryBody (Text.unpack q) root of
                 Nothing -> VString ""
-                Just (one :: Aeson.Value) -> case one of
-                    Aeson.Bool v ->   VBool v
-                    Aeson.String v -> VString v
-                    Aeson.Number v -> VNum v
-                    Aeson.Object v -> VObj v
-                    Aeson.Array v ->  VArray v
-                    Aeson.Null ->     VNull
+                Just one -> aesonToExpr one
 
     go (Add (VNum v1) (VNum v2)) = VNum (v1 + v2)
     go (Add e1 e2) =       go (Add (go e1) (go e2))
