@@ -39,7 +39,7 @@ import           BEL.Pratt
 -- ??: parametrized fn invocation "loremIpsum 5" -> ... BEL.loremChars 5
 toExpr :: Env -> [Token] -> IO Expr
 -- toExpr _env [TIdentifier thunk, TParenOpn, TParenCls] =
-toExpr _env (TIdentifier thunk : TParenOpn : TParenCls : []) =
+toExpr _env (TIdentifier thunk : TParenOpn : TParenCls : []) = do
     case thunk of
         "today" -> do
             tdy <- BEL.ioToday
@@ -53,16 +53,11 @@ toExpr _env (TIdentifier thunk : TParenOpn : TParenCls : []) =
         _ -> pure $ VString ""
 
 toExpr env toks = do
-    let (expr, _rest) = expression 0 toks  -- ??: effectfulExpr :: 0 toks -> IO ...
+    let (expr, _rest) = expression 0 (trace ("toks:" ++ show toks) $ toks)  -- ??: effectfulExpr :: 0 toks -> IO ...
+    -- let (expr, _rest) = expression 0 toks  -- ??: effectfulExpr :: 0 toks -> IO ...
         -- res :: Expr = match env expr
         res :: Expr = match env (trace ("pratted:" ++ show expr)$ expr)
     case (trace ("matched:" ++ show res) $ res) of
-
-        -- EPrint e@(VString s) -> do
-        --     let tmp = trace ("") $ HM.lookupDefault (Aeson.String "tmp oops") (Text.unpack s) env
-        --     print (trace ("gotcha" ++ show e) tmp)
-        --     -- pure e
-        --     pure $ VBool False
 
         EPrint e -> do
             print (finalValue env e)
@@ -81,23 +76,12 @@ number = do
 
 type Parser = Parsec Void Text
 
--- `show (t :: Text)` does introduce double quote on both ends.
-show' :: Text -> String
-show' t = trimQuotes $ show t
-    where
-    trimQuotes :: String -> String
-    trimQuotes s =
-      case s of
-        ('"':xs) -> case reverse xs of
-                      ('"':ys) -> reverse ys
-                      _        -> s
-        _        -> s
-
 
 
 eval :: Env -> Text -> IO Expr
 eval env input =
-    case runParser exprP "" input of
+    -- case runParser exprP "" input of
+    case runParser exprP "" (trace ("input:" ++ show input)$ input) of
         Left _ -> pure $ VString input
         Right (tokens :: [Token]) -> do
             e <- toExpr env tokens
@@ -410,3 +394,18 @@ word :: Parser [Token]
 word = do
     xs <- some $ C.alphaNumChar <|> C.char '_' <|> C.char '.' <|> C.char '(' <|> C.char ')'
     pure [TIdentifier (Text.pack xs)]
+
+--------------------------------------------------------------------------------
+-- More lib than app code
+--------------------------------------------------------------------------------
+-- `show (t :: Text)` does introduce double quote on both ends.
+show' :: Text -> String
+show' t = trimQuotes $ show t
+    where
+    trimQuotes :: String -> String
+    trimQuotes s =
+      case s of
+        ('"':xs) -> case reverse xs of
+                      ('"':ys) -> reverse ys
+                      _        -> s
+        _        -> s
