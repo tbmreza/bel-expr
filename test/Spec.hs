@@ -7,10 +7,11 @@ import Debug.Trace
 import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Test.Tasty.QuickCheck hiding (Fn)
-import           Test.QuickCheck hiding (Fn)
 
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Aeson.Types as Aeson (Value(..))
+import qualified Data.Aeson.KeyMap as KM
+import qualified Data.Aeson.Key as K
 import           Data.Aeson.QQ.Simple (aesonQQ)
 import           Data.Text (Text)
 import qualified Data.Text as Text
@@ -35,9 +36,33 @@ main = defaultMain $ testGroup "Tests"
                            ]
   , testGroup "Properties" [ testProperty "render identity simple" prop_render_identity_simple
                            , testProperty "render doesn't crash" prop_render_doesnt_crash
+                           , testProperty "queryEnvRespBody missing" prop_queryEnvRespBody_missing
+                           , testProperty "queryEnvRespBody root" prop_queryEnvRespBody_root
+                           , testProperty "queryEnvRespBody nested" prop_queryEnvRespBody_nested
                            -- , testProperty "eval doesn't crash" prop_eval_doesnt_crash
                            ]
   ]
+
+prop_queryEnvRespBody_missing :: String -> Property
+prop_queryEnvRespBody_missing path =
+    BEL.queryEnvRespBody HM.empty (Text.pack path) === VString ""
+
+prop_queryEnvRespBody_root :: String -> Property
+prop_queryEnvRespBody_root val =
+    let txt = Text.pack val
+        env = HM.fromList [("RESP_BODY", Aeson.String txt)]
+    in BEL.queryEnvRespBody env "$" === VString txt
+
+prop_queryEnvRespBody_nested :: Property
+prop_queryEnvRespBody_nested =
+    forAll (listOf1 (elements ['a'..'z'])) $ \k ->
+    forAll arbitrary $ \v ->
+    let key = Text.pack k
+        val = Text.pack v
+        inner = Aeson.Object $ KM.fromList [(K.fromText key, Aeson.String val)]
+        root = Aeson.Object $ KM.fromList [(K.fromText "data", inner)]
+        env = HM.fromList [("RESP_BODY", root)]
+    in BEL.queryEnvRespBody env ("$.data." <> key) === VString val
 
 prop_eval_doesnt_crash :: String -> Property
 prop_eval_doesnt_crash input = ioProperty $ do
