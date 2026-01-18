@@ -125,6 +125,15 @@ aesonToExpr (Aeson.Array v)  = VArray v
 aesonToExpr Aeson.Null       = VNull
 
 
+queryEnvRespBody :: Env -> Text -> Expr
+queryEnvRespBody env q =
+    case HM.lookup "RESP_BODY" env of
+        Nothing -> VString ""
+        Just root -> case queryBody (Text.unpack q) root of
+            Nothing -> VString ""
+            Just one -> aesonToExpr one
+
+
 match :: Env -> Expr -> Expr
 match env = go
     where
@@ -149,22 +158,11 @@ match env = go
     -- ??: pattern match when queryBody returns none, then lookup, else literal
     -- debug $.method
     go (App (Fn "debug") (VString q)) =
-        -- let queried = VString "POST" in
-        let queried = case HM.lookup "RESP_BODY" env of
-                Nothing -> VString ""
-                Just root -> case queryBody (Text.unpack q) root of
-                    Nothing -> VString ""
-                    Just one -> aesonToExpr one
-        in
-        EPrint queried
+        EPrint (queryEnvRespBody env q)
 
 
     go (App (Fn "jsonpath") (VString q)) =
-        case HM.lookup "RESP_BODY" env of
-            Nothing -> VString ""
-            Just root -> case queryBody (Text.unpack q) root of
-                Nothing -> VString ""
-                Just one -> aesonToExpr one
+        queryEnvRespBody env q
 
     go (Add (VNum v1) (VNum v2)) = VNum (v1 + v2)
     go (Add e1 e2) =       go (Add (go e1) (go e2))
