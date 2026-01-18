@@ -8,7 +8,7 @@ module BEL
   , partitions, Part(..)
   , eval, render
   -- For testing:
-  , toExpr, Token(..), Expr(..), match, finalValue
+  , toExpr, Token(..), Expr(..), match, finalValue, queryEnvRespBody
   ) where
 
 import Debug.Trace

@@ -17,7 +17,7 @@ import qualified Data.Text as Text
 
 import           BEL
 
--- ??: don define a new callsite in tests code
+-- ?? don define a new callsite in tests code
 evalValue :: BEL.Env -> Text -> IO Aeson.Value
 evalValue env input = do
     e <- BEL.eval env input
@@ -31,12 +31,15 @@ main = defaultMain $ testGroup "Tests"
                            , test1 , test2 , test3 , test4 , test5 , test6
                            , test7 , test8 , test9 , test10 , test11 , test12
                            , test13 , test14 , test15 , testAmbiguity
-                           -- , testDebug
+                           , testQueryEnvRespBody
                            ]
   -- , testGroup "Properties" [ testProperty "eval doesn't crash" prop_eval_doesnt_crash
   --                          , testProperty "render doesn't crash" prop_render_doesnt_crash
   --                          , testProperty "render identity simple" prop_render_identity_simple
   --                          ]
+  , testGroup "Properties" [ testProperty "render doesn't crash" prop_render_doesnt_crash
+                           , testProperty "render identity simple" prop_render_identity_simple
+                           ]
   ]
 
 prop_eval_doesnt_crash :: String -> Property
@@ -258,13 +261,32 @@ testAmbiguity = testCase "ambiguity between variables and strings" $ do
         _ -> assertFailure $ "Expected VString \"foo\" (current behavior), got: " ++ show res1
 
 -- (auto)
--- testDebug :: TestTree
--- testDebug = testCase "debug side effect" $ do
---     -- should print (side effect) and return true.
---     resNum <- BEL.eval HM.empty "debug 5"
---     resBool <- BEL.eval HM.empty "debug true"
---     
---     case (resNum, resBool) of
---         -- (VNum 5, VBool True) -> pure ()
---         (VBool True, VBool True) -> pure ()
---         (n, b) -> assertFailure $ "Debug did not pass through values. Got: " ++ show n ++ ", " ++ show b
+testQueryEnvRespBody :: TestTree
+testQueryEnvRespBody = testCase "queryEnvRespBody function" $ do
+    let root :: Aeson.Value = [aesonQQ| { "status": "ok", "items": [1, 2, 3] } |]
+        env :: BEL.Env = HM.fromList [("RESP_BODY", root)]
+        envEmpty :: BEL.Env = HM.empty
+
+    -- Case 1: Existing path
+    let res1 = BEL.queryEnvRespBody env "$.status"
+    case res1 of
+        VString "ok" -> pure ()
+        _ -> assertFailure $ "Expected VString \"ok\", got: " ++ show res1
+
+    -- Case 2: Array access
+    let res2 = BEL.queryEnvRespBody env "$.items[0]"
+    case res2 of
+        VNum 1 -> pure ()
+        _ -> assertFailure $ "Expected VNum 1, got: " ++ show res2
+
+    -- Case 3: Missing path
+    let res3 = BEL.queryEnvRespBody env "$.missing"
+    case res3 of
+        VString "" -> pure ()
+        _ -> assertFailure $ "Expected VString \"\", got: " ++ show res3
+
+    -- Case 4: No RESP_BODY in env
+    let res4 = BEL.queryEnvRespBody envEmpty "$.status"
+    case res4 of
+        VString "" -> pure ()
+        _ -> assertFailure $ "Expected VString \"\", got: " ++ show res4
