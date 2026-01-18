@@ -38,20 +38,24 @@ import           BEL.Pratt
 
 -- ??: parametrized fn invocation "loremIpsum 5" -> ... BEL.loremChars 5
 toExpr :: Env -> [Token] -> IO Expr
-toExpr _env [TIdentifier thunk, TParenOpn, TParenCls] = do
-    tdy <- BEL.ioToday
-    yr <- BEL.ioYear
-    dom <- BEL.ioDayOfMonth
-    pure $ case thunk of
-        "today" -> VString (Text.pack tdy)
-        "year" -> VString (Text.pack yr)
-        "dayOfMonth" -> VString (Text.pack dom)
-        _ -> VString ""
+-- toExpr _env [TIdentifier thunk, TParenOpn, TParenCls] =
+toExpr _env (TIdentifier thunk : TParenOpn : TParenCls : []) =
+    case thunk of
+        "today" -> do
+            tdy <- BEL.ioToday
+            pure $ VString (Text.pack tdy)
+        "year" -> do
+            yr <- BEL.ioYear
+            pure $ VString (Text.pack yr)
+        "dayOfMonth" -> do
+            dom <- BEL.ioDayOfMonth
+            pure $ VString (Text.pack dom)
+        _ -> pure $ VString ""
 
 toExpr env toks = do
-    let (expr, _rest) = expression 0 toks
-        -- res :: Expr = EPrint (VString "$.method")
-        res :: Expr = match env expr
+    let (expr, _rest) = expression 0 toks  -- ??: effectfulExpr :: 0 toks -> IO ...
+        -- res :: Expr = match env expr
+        res :: Expr = match env (trace ("pratted:" ++ show expr)$ expr)
     case (trace ("matched:" ++ show res) $ res) of
 
         -- EPrint e@(VString s) -> do
@@ -62,7 +66,7 @@ toExpr env toks = do
 
         EPrint e -> do
             print (finalValue env e)
-            pure e
+            pure (VBool True)
 
         _ -> pure res
 
@@ -140,10 +144,9 @@ match env = go
 
     -- ??: pattern match when queryBody returns none, then lookup, else literal
     go (App (Fn "debug") (VString q)) =
-        trace ("if trace is enough:\t" ++ show q) $ VBool True
+        -- trace ("aif trace is enough:\t" ++ show q) $ VBool True
+        EPrint (VNum 130)
 
-    go (App (Fn "debug") q) =
-        trace ("if trace is enough:\t" ++ show q) $ VBool True
 
     go (App (Fn "jsonpath") (VString q)) =
         case HM.lookup "RESP_BODY" env of

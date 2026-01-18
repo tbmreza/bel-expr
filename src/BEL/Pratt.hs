@@ -140,15 +140,3 @@ expression rbp tokens =
                     in h rbp newLeft newRest
                 else
                     (left, tokens)
-
-
--- loop :: Env -> Int -> Expr -> [Token] -> (Expr, [Token])
--- loop env rbp left tokens =
---     case tokens of
---         [] -> (left, [])
---         (t:rest) ->
---             if bp t > rbp
---             then
---                 let (newLeft, newRest) = led env t left rest
---                 in loop env rbp newLeft newRest
---             else (left, tokens)
