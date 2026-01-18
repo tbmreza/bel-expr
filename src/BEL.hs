@@ -11,8 +11,6 @@ module BEL
   , toExpr, Token(..), Expr(..), match, finalValue, queryEnvRespBody
   ) where
 
-import Debug.Trace
-
 import           Control.Applicative (empty)
 import           Data.Scientific (Scientific, floatingOrInteger)
 import qualified Data.HashMap.Strict as HM
@@ -53,11 +51,9 @@ toExpr _env (TIdentifier thunk : TParenOpn : TParenCls : []) = do
         _ -> pure $ VString ""
 
 toExpr env toks = do
-    let (expr, _rest) = expression 0 (trace ("toks:" ++ show toks) $ toks)  -- ??: effectfulExpr :: 0 toks -> IO ...
-    -- let (expr, _rest) = expression 0 toks  -- ??: effectfulExpr :: 0 toks -> IO ...
-        -- res :: Expr = match env expr
-        res :: Expr = match env (trace ("pratted:" ++ show expr)$ expr)
-    case (trace ("matched:" ++ show res) $ res) of
+    let (expr, _rest) = expression 0 toks
+    let res = match env expr
+    case res of
 
         EPrint e -> do
             print (finalValue env e)
@@ -80,8 +76,7 @@ type Parser = Parsec Void Text
 
 eval :: Env -> Text -> IO Expr
 eval env input =
-    -- case runParser exprP "" input of
-    case runParser exprP "" (trace ("input:" ++ show input)$ input) of
+    case runParser exprP "" input of
         Left _ -> pure $ VString input
         Right (tokens :: [Token]) -> do
             e <- toExpr env tokens
@@ -130,8 +125,10 @@ match env = go
             Just v -> aesonToExpr v
             Nothing -> VString t
 
-    go (Neg (VBool b)) = VBool $ not b
-    go (Neg e) = go (Neg (go e))
+    go (Neg e) =
+        case go e of
+            VBool b -> VBool (not b)
+            e' -> Neg e'
 
     go (Eq e1 e2) = VBool (go e1 == go e2)
     go (Neq e1 e2) = go (Neg (Eq e1 e2))
@@ -158,17 +155,25 @@ match env = go
     go (App (Fn "jsonpath") (VString q)) =
         queryEnvRespBody env q
 
-    go (Add (VNum v1) (VNum v2)) = VNum (v1 + v2)
-    go (Add e1 e2) =       go (Add (go e1) (go e2))
+    go (Add e1 e2) =
+        case (go e1, go e2) of
+            (VNum v1, VNum v2) -> VNum (v1 + v2)
+            (r1, r2) -> Add r1 r2
 
-    go (Mul (VNum v1) (VNum v2)) = VNum (v1 * v2)
-    go (Mul e1 e2) =       go (Mul (go e1) (go e2))
+    go (Mul e1 e2) =
+        case (go e1, go e2) of
+            (VNum v1, VNum v2) -> VNum (v1 * v2)
+            (r1, r2) -> Mul r1 r2
 
-    go (Sub (VNum v1) (VNum v2)) = VNum (v1 - v2)
-    go (Sub e1 e2) = go (Sub (go e1) (go e2))
+    go (Sub e1 e2) =
+        case (go e1, go e2) of
+            (VNum v1, VNum v2) -> VNum (v1 - v2)
+            (r1, r2) -> Sub r1 r2
 
-    go (Div (VNum v1) (VNum v2)) = VNum (v1 / v2)
-    go (Div e1 e2) = go (Div (go e1) (go e2))
+    go (Div e1 e2) =
+        case (go e1, go e2) of
+            (VNum v1, VNum v2) -> VNum (v1 / v2)
+            (r1, r2) -> Div r1 r2
 
     go e = e
 
@@ -261,12 +266,15 @@ relP = choice
   , TGte <$ C.string ">="
   ]
 
--- arith expressions simplify to a number.
+-- | Parse arithmetic expressions.
+-- The 'try' inside 'many' is critical because 'sc' might consume whitespace
+-- before 'operatorP' fails (e.g., at the end of an expression or before a different token).
+-- Without 'try', the parser would commit to the loop iteration and fail the entire 'arithP'.
 arithP :: Parser [Token]
 arithP = try $ do
     sc
     first <- valueP
-    rest <- many $ do
+    rest <- many $ try $ do
         sc
         op <- operatorP
         sc

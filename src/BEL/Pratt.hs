@@ -13,7 +13,6 @@ import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Aeson as Aeson
 import           Data.Scientific (Scientific)
-import           Debug.Trace (trace)
 
 type Env = HM.HashMap String Aeson.Value
 
