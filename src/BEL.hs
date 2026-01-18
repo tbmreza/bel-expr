@@ -11,6 +11,8 @@ module BEL
   , toExpr, Token(..), Expr(..), match, finalValue, queryEnvRespBody
   ) where
 
+import Debug.Trace
+
 import           Control.Applicative (empty)
 import           Data.Scientific (Scientific, floatingOrInteger)
 import qualified Data.HashMap.Strict as HM
@@ -56,7 +58,7 @@ toExpr env toks = do
     case res of
 
         EPrint e -> do
-            print (finalValue env e)
+            print (finalValue e)
             pure (VBool True)
 
         _ -> pure res
@@ -76,23 +78,23 @@ type Parser = Parsec Void Text
 
 eval :: Env -> Text -> IO Expr
 eval env input =
-    case runParser exprP "" input of
+    case runParser exprP "" (trace ("input:" ++ show input) $ input) of
         Left _ -> pure $ VString input
         Right (tokens :: [Token]) -> do
-            e <- toExpr env tokens
+            e <- toExpr env (trace ("tokens:" ++ show tokens) $ tokens)
             pure (match env e)
 
 
--- ??: git diff  auto VIdent  with goal of removing Env here
-finalValue :: Env -> Expr -> Aeson.Value
+finalValue :: Expr -> Aeson.Value
 
-finalValue _ (VString k) = Aeson.String k
-finalValue _ (VBool s) = Aeson.Bool s
-finalValue _ (VNum s) = Aeson.Number s
-finalValue _ (VObj s) = Aeson.Object s
-finalValue _ (VArray s) = Aeson.Array s
-finalValue _ VNull = Aeson.Null
-finalValue _ e = Aeson.String (Text.pack $ show e)
+finalValue (VString k) = Aeson.String k
+finalValue (VBool s) =   Aeson.Bool s
+finalValue (VNum s) =    Aeson.Number s
+finalValue (VObj s) =    Aeson.Object s
+finalValue (VArray s) =  Aeson.Array s
+finalValue VNull =       Aeson.Null
+
+finalValue e = Aeson.String (Text.pack $ show e)
 
 
 aesonToExpr :: Aeson.Value -> Expr
@@ -377,7 +379,8 @@ render env (Aeson.String acc) ((L t):rest) = do
     evaled :: Expr <- eval env t
 
     -- render necessitates for effective final values to be string.
-    let str = case finalValue env evaled of
+    -- let str = case finalValue env evaled of
+    let str = case finalValue evaled of
             Aeson.String txt -> show' txt
             Aeson.Object obj -> show obj
             Aeson.Number n -> case floatingOrInteger n of

@@ -22,7 +22,7 @@ import           BEL
 evalValue :: BEL.Env -> Text -> IO Aeson.Value
 evalValue env input = do
     e <- BEL.eval env input
-    pure $ BEL.finalValue env e
+    pure $ BEL.finalValue e
 
 main :: IO ()
 main = defaultMain $ testGroup "Tests"
@@ -145,7 +145,7 @@ test4 = testCase "arith nest" $ do
 
     where
     finalMatch :: Expr -> Aeson.Value
-    finalMatch prog = finalValue envNew $ match envNew prog
+    finalMatch prog = finalValue $ match envNew prog
 
     envNew :: BEL.Env
     envNew = HM.fromList []
