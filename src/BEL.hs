@@ -1,7 +1,4 @@
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE BangPatterns, OverloadedStrings, ScopedTypeVariables, QuasiQuotes #-}
 
 module BEL
   ( Env
@@ -29,14 +26,16 @@ import           Text.Megaparsec ( Parsec, (<|>), some
                                  , many, manyTill
                                  , try, runParser
                                  , takeWhile1P
+                                 , takeWhileP
                                  , choice
+                                 , eof
                                  )
 
 import qualified BEL.BatteriesMain as BEL
 import           BEL.Pratt
 
 
--- ??: parametrized fn invocation "loremIpsum 5" -> ... BEL.loremChars 5
+-- ?? : parametrized fn invocation "loremIpsum 5" -> ... BEL.loremChars 5
 toExpr :: Env -> [Token] -> IO Expr
 
 -- PICKUP document pratt; generalize $ @ %
@@ -84,10 +83,10 @@ type Parser = Parsec Void Text
 
 eval :: Env -> Text -> IO Expr
 eval env input =
-    case runParser exprP "" (trace ("input:" ++ show input) $ input) of
+    case runParser (exprP <* eof) "" input of
         Left _ -> pure $ VString input
         Right (tokens :: [Token]) -> do
-            e <- toExpr env (trace ("tokens:" ++ show tokens) $ tokens)
+            e <- toExpr env tokens
             pure (match env e)
 
 
@@ -154,7 +153,7 @@ match env = go
     -- `debug` is a special assertion line that always evaluates to true, main
     -- functionality being its side effect of printing to stdout.
 
-    -- ??: pattern match when queryBody returns none, then lookup, else literal
+    -- ?? : pattern match when queryBody returns none, then lookup, else literal
     -- debug $.method
     go (App (Fn "debug") (VString q)) =
         EPrint (queryEnvRespBody env q)
@@ -184,27 +183,6 @@ match env = go
             (r1, r2) -> Div r1 r2
 
     go e = e
-
-jsonpathArg :: Parser [Token]
-jsonpathArg = try $ do
-    _ <- C.char '"'
-    t <- takeWhile1P Nothing (/= '"')
-    _ <- C.char '"'
-    pure [TQuoted t]
-
-invocDebug :: Parser [Token]
-invocDebug = try $ do
-    fn <- C.string "debug"
-    sc
-    tokens <- exprP
-    pure (TIdentifier fn : tokens)
-
-invocJsonpath :: Parser [Token]
-invocJsonpath = try $ do
-    _ <- C.string "jsonpath"
-    sc
-    [quoted] <- jsonpathArg
-    pure [TJsonpath, quoted]
 
 -- Expect one matching Value.
 queryBody :: String -> Aeson.Value -> Maybe Aeson.Value
@@ -250,22 +228,6 @@ boolP = choice
   , (TBool True)  <$ C.string "true"
   ]
 
-
-
-propP :: Parser [Token]
-propP =
-    (:[]) <$> boolP
-    <|> relExprP
-
-relExprP :: Parser [Token]
-relExprP = try $ do
-    v1 <- valueP
-    sc
-    op <- relP
-    sc
-    v2 <- valueP
-    pure [v1, op, v2]
-
 relP :: Parser Token
 relP = choice
   [ TNeq <$ C.string "!="
@@ -273,22 +235,6 @@ relP = choice
   , TLte <$ C.string "<="
   , TGte <$ C.string ">="
   ]
-
--- | Parse arithmetic expressions.
--- The 'try' inside 'many' is critical because 'sc' might consume whitespace
--- before 'operatorP' fails (e.g., at the end of an expression or before a different token).
--- Without 'try', the parser would commit to the loop iteration and fail the entire 'arithP'.
-arithP :: Parser [Token]
-arithP = try $ do
-    sc
-    first <- valueP
-    rest <- many $ try $ do
-        sc
-        op <- operatorP
-        sc
-        val <- valueP
-        pure [op, val]
-    pure $ first : concat rest
 
 operatorP :: Parser Token
 operatorP = choice
@@ -298,34 +244,32 @@ operatorP = choice
   , TDiv   <$ C.char '/'
   ]
 
-valueP :: Parser Token
-valueP = choice
-  [ TNum <$> try number
-  , TIdentifier <$> identifier
+tokenP :: Parser Token
+tokenP = choice
+  [ try $ TNeq <$ C.string "!="
+  , try $ TEq  <$ C.string "=="
+  , try $ TLte <$ C.string "<="
+  , try $ TGte <$ C.string ">="
+  , try $ TPlus  <$ C.char '+'
+  , try $ TMinus <$ C.char '-'
+  , try $ TMult  <$ C.char '*'
+  , try $ TDiv   <$ C.char '/'
+  , try $ TParenOpn <$ C.char '('
+  , try $ TParenCls <$ C.char ')'
+  , try $ TNum <$> number
+  , try $ boolP
+  , try $ TJsonpath <$ C.string "jsonpath"
+  , try $ TQuoted <$> (C.char '"' *> takeWhileP Nothing (/= '"') <* C.char '"')
+  , try $ TIdentifier <$> identifier'
   ]
 
-
--- identifier (many arg)
--- today()
--- size(identifier)
--- invocation expressions simplify to a value.
-invocationP :: Parser [Token]
-invocationP = try $ do
-    fn :: Text <- identifier
-    opn <- TParenOpn <$ C.char '('
-    cls <- TParenCls <$ C.char ')'
-    pure [TIdentifier fn, opn, cls]
+identifier' :: Parser Text
+identifier' = do
+    xs <- some $ C.alphaNumChar <|> C.char '_' <|> C.char '.'
+    pure (Text.pack xs)
 
 exprP :: Parser [Token]
-exprP = try $ do
-    propP
-    <|> invocDebug
-    <|> arithP
-    <|> invocationP
-    <|> invocJsonpath
-    <|> jsonpathArg
-    <|> word
-
+exprP = sc *> many (tokenP <* sc)
 
 partsP :: Parser [Part]
 partsP = many $ choice

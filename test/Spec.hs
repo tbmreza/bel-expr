@@ -191,10 +191,10 @@ test8 = testCase "jsonpath invocation" $ do
         envNew :: BEL.Env = HM.fromList [("year", Aeson.String "2025"), ("RESP_BODY", root)]
 
     -- jsonpath "$.data.unchecked" == 2005
-    let prog1 = Eq (App (Fn "jsonpath") (VString "$.data.unchecked")) (VNum 2005)
-        prog2 = App (Fn "jsonpath") (VString "$.data.unchecked")
+    res1 <- BEL.eval envNew "jsonpath \"$.data.unchecked\" == 2005"
+    res2 <- BEL.eval envNew "jsonpath \"$.data.unchecked\""
 
-    case (match envNew prog1, match envNew prog2) of
+    case (res1, res2) of
         (VBool True, VNum 2005) -> pure ()
         all -> assertFailure $ show all
 

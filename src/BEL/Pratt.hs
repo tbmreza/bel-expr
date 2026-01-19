@@ -69,10 +69,8 @@ bp _ =       0
 -- Null denotation "nud".
 nud :: Token -> [Token] -> (Expr, [Token])
 
-nud (TNum n) rest = (VNum n, rest)
-
-nud (TBool b) rest = (VBool b, rest)
-
+nud (TNum n) rest =    (VNum n, rest)
+nud (TBool b) rest =   (VBool b, rest)
 nud (TQuoted s) rest = (VString s, rest)
 
 nud (TIdentifier "debug") rest =
@@ -81,7 +79,6 @@ nud (TIdentifier "debug") rest =
 
 nud (TIdentifier t) rest = (VIdent t, rest)
 
--- ??: after this is unit tested, replicate in "debug"
 nud TJsonpath (TQuoted t : rest) = (App (Fn "jsonpath") (VString t), rest)
 
 nud TParenOpn rest =
