@@ -5,7 +5,8 @@ module BEL
   , partitions, Part(..)
   , eval, render
   -- For testing:
-  , toExpr, Token(..), Expr(..), match, finalValue, queryEnvRespBody
+  -- , toExpr
+  , Token(..), Expr(..), match, finalValue, queryEnvRespBody
   ) where
 
 import Debug.Trace
@@ -36,37 +37,49 @@ import           BEL.Pratt
 
 
 -- ?? : parametrized fn invocation "loremIpsum 5" -> ... BEL.loremChars 5
-toExpr :: Env -> [Token] -> IO Expr
 
--- PICKUP document pratt; generalize $ @ %
--- goal/problem: cross concern between toExpr, Pratt.expression, BEL.match
-toExpr _env (TIdentifier "debug" : TQuoted s : []) = do
-    print (finalValue (VString "hardcoded"))
-    pure (VBool True)
+-- toExpr :: Env -> [Token] -> Expr
+-- toExpr env toks =
+--     let (expr, _rest) = expression 0 toks
+--         res = match env expr
+--     case res of
+--
+--         EPrint e -> do
+--             print (finalValue e)
+--             pure (VBool True)
+--
+--         _ -> pure res
 
-toExpr _env (TIdentifier thunk : TParenOpn : TParenCls : []) = do
-    case thunk of
-        "today" -> do
-            tdy <- BEL.ioToday
-            pure $ VString (Text.pack tdy)
-        "year" -> do
-            yr <- BEL.ioYear
-            pure $ VString (Text.pack yr)
-        "dayOfMonth" -> do
-            dom <- BEL.ioDayOfMonth
-            pure $ VString (Text.pack dom)
-        _ -> pure $ VString ""
 
-toExpr env toks = do
-    let (expr, _rest) = expression 0 toks
-        res = match env expr
-    case res of
-
-        EPrint e -> do
-            print (finalValue e)
-            pure (VBool True)
-
-        _ -> pure res
+-- toExpr :: Env -> [Token] -> IO Expr
+--
+-- -- toExpr _env (TIdentifier "debug" : TQuoted s : []) = do
+-- --     print (finalValue (VString "hardcodid"))
+-- --     pure (VBool True)
+--
+-- -- toExpr _env (TIdentifier thunk : TParenOpn : TParenCls : []) = do
+-- --     case thunk of
+-- --         "today" -> do
+-- --             tdy <- BEL.ioToday
+-- --             pure $ VString (Text.pack tdy)
+-- --         "year" -> do
+-- --             yr <- BEL.ioYear
+-- --             pure $ VString (Text.pack yr)
+-- --         "dayOfMonth" -> do
+-- --             dom <- BEL.ioDayOfMonth
+-- --             pure $ VString (Text.pack dom)
+-- --         _ -> pure $ VString ""
+--
+-- toExpr env toks = do
+--     let (expr, _rest) = expression 0 toks
+--         res = match env expr
+--     case res of
+--
+--         EPrint e -> do
+--             print (finalValue e)
+--             pure (VBool True)
+--
+--         _ -> pure res
 
 
 -- Space consumer
@@ -79,15 +92,34 @@ number = do
 
 type Parser = Parsec Void Text
 
+-- (auto) gemini's untangling proposal:
+-- pratt ::  Env -> Int -> [Token] -> (Expr, [Token])
+-- toExpr :: Env -> [Token] -> (Expr, [Token])
+-- match ::  Env -> Expr -> Expr
+-- eval ::   Env -> Expr -> IO Expr
+-- eval env expr = case expr of
+--     EPrint arg -> do
+--         val <- eval env arg
+--         print val 
+--         return val
+--     _ -> return (match env expr)
+
+-- efal :: Env -> Expr -> IO Expr
+-- efal env expr = 
+--     case expr of
+--         -- Call name args -> match env (Call name args)
+--         _ -> pure expr
 
 
 eval :: Env -> Text -> IO Expr
 eval env input =
     case runParser (exprP <* eof) "" input of
         Left _ -> pure $ VString input
-        Right (tokens :: [Token]) -> do
-            e <- toExpr env tokens
-            pure (match env e)
+        Right tokens -> do
+            let (expr, _rest) = expression 0 tokens
+
+            case match env expr of
+                res -> pure res
 
 
 finalValue :: Expr -> Aeson.Value
@@ -153,6 +185,7 @@ match env = go
     -- `debug` is a special assertion line that always evaluates to true, main
     -- functionality being its side effect of printing to stdout.
 
+    -- ??: generalize $ @ %  >debug "$.method"
     -- ?? : pattern match when queryBody returns none, then lookup, else literal
     -- debug $.method
     go (App (Fn "debug") (VString q)) =
@@ -316,7 +349,8 @@ partitions input =
         Right [] -> [R input]
         Right parts -> parts
 
--- Argument either needs evaluation (Left) or already just "Right".
+-- Argument either needs evaluation (Left) or already just "Right". Doesn't
+-- bubble exceptions further up; render failure echoes the input.
 render :: Env -> Aeson.Value -> [Part] -> IO Aeson.Value
 render _env accStr [] =
     pure accStr
@@ -341,8 +375,8 @@ render env (Aeson.String acc) ((L t):rest) = do
     let av = Aeson.String $ Text.concat [acc, Text.pack str]
     render env av rest
 
--- render _ _ _ = pure $ Aeson.String ""
-render _ _ _ = undefined
+render _ _ _ = pure $ Aeson.String ""
+-- render _ _ _ = undefined  -- debugging
 
 
 identifier :: Parser Text

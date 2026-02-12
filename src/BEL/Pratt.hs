@@ -127,6 +127,9 @@ led TGte left rest =
 
 led t left rest = (left, t:rest)
 
+pratt :: Int -> [Token] -> (Expr, [Token])
+pratt _ = undefined
+
 -- Right binding power (rbp).
 expression :: Int -> [Token] -> (Expr, [Token])
 expression rbp tokens =
