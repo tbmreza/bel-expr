@@ -12,6 +12,7 @@ module BEL
 
 import Debug.Trace
 
+import           Control.Lens
 import           Control.Applicative (empty)
 import           Data.Scientific (Scientific, floatingOrInteger)
 import qualified Data.HashMap.Strict as HM
@@ -165,8 +166,7 @@ aesonToExpr Aeson.Null       = VNull
 
 queryEnvRespBody :: Env -> Text -> Expr
 queryEnvRespBody env q =
-    -- PICKUP lens after it's alive
-    case HM.lookup "RESP_BODY" env of
+    case env ^? ix "RESP_BODY" of
         Nothing -> VString ""
         Just root -> case queryBody (Text.unpack q) root of
             Nothing -> VString ""

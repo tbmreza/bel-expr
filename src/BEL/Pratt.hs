@@ -9,6 +9,11 @@ module BEL.Pratt
   ) where
 
 import qualified Data.HashMap.Strict as HM
+import           Control.Lens
+-- import           Control.Lens ((&), (?~))
+import           Control.Lens.At (at)
+
+-- import           Data.HashMap.Strict.Lens
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Aeson as Aeson
