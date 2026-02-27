@@ -5,7 +5,7 @@ module BEL.Pratt
   ( Env
   , Token(..)
   , Expr(..)
-  , expression
+  , pratt
   ) where
 
 import qualified Data.HashMap.Strict as HM
@@ -74,7 +74,7 @@ nud (TBool b) rest =   (VBool b, rest)
 nud (TQuoted s) rest = (VString s, rest)
 
 nud (TIdentifier "debug") rest =
-    let (e, rest') = expression 0 rest
+    let (e, rest') = pratt 0 rest
     in (App (Fn "debug") e, rest')
 
 nud (TIdentifier t) rest = (VIdent t, rest)
@@ -82,7 +82,7 @@ nud (TIdentifier t) rest = (VIdent t, rest)
 nud TJsonpath (TQuoted t : rest) = (App (Fn "jsonpath") (VString t), rest)
 
 nud TParenOpn rest =
-    let (e, rest') = expression 0 rest
+    let (e, rest') = pratt 0 rest
     in case rest' of
         (TParenCls:rest'') -> (e, rest'')
         _ -> (e, rest')
@@ -94,45 +94,42 @@ nud t _ = (VString (Text.pack $ show [t]), [])
 led :: Token -> Expr -> [Token] -> (Expr, [Token])
 
 led TPlus left rest =
-    let (right, rest') = expression 10 rest
+    let (right, rest') = pratt 10 rest
     in (Add left right, rest')
 
 led TMinus left rest =
-    let (right, rest') = expression 10 rest
+    let (right, rest') = pratt 10 rest
     in (Sub left right, rest')
 
 led TMult left rest =
-    let (right, rest') = expression 20 rest
+    let (right, rest') = pratt 20 rest
     in (Mul left right, rest')
 
 led TDiv left rest =
-    let (right, rest') = expression 20 rest
+    let (right, rest') = pratt 20 rest
     in (Div left right, rest')
 
 led TEq left rest =
-    let (right, rest') = expression 5 rest
+    let (right, rest') = pratt 5 rest
     in (Eq left right, rest')
 
 led TNeq left rest =
-    let (right, rest') = expression 5 rest
+    let (right, rest') = pratt 5 rest
     in (Neq left right, rest')
 
 led TLte left rest =
-    let (right, rest') = expression 5 rest
+    let (right, rest') = pratt 5 rest
     in (Lte left right, rest')
 
 led TGte left rest =
-    let (right, rest') = expression 5 rest
+    let (right, rest') = pratt 5 rest
     in (Gte left right, rest')
 
 led t left rest = (left, t:rest)
 
-pratt :: Int -> [Token] -> (Expr, [Token])
-pratt _ = undefined
-
 -- Right binding power (rbp).
-expression :: Int -> [Token] -> (Expr, [Token])
-expression rbp tokens =
+pratt :: Int -> [Token] -> (Expr, [Token])
+pratt rbp tokens =
     case tokens of
         [] -> (VString "", [])
         (t:rest) ->

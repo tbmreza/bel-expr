@@ -3,7 +3,8 @@
 module BEL
   ( Env
   , partitions, Part(..)
-  , eval, render
+  , render
+  , mapEval
   -- For testing:
   -- , toExpr
   , Token(..), Expr(..), match, finalValue, queryEnvRespBody
@@ -40,7 +41,7 @@ import           BEL.Pratt
 
 -- toExpr :: Env -> [Token] -> Expr
 -- toExpr env toks =
---     let (expr, _rest) = expression 0 toks
+--     let (expr, _rest) = pratt 0 toks
 --         res = match env expr
 --     case res of
 --
@@ -71,7 +72,7 @@ import           BEL.Pratt
 -- --         _ -> pure $ VString ""
 --
 -- toExpr env toks = do
---     let (expr, _rest) = expression 0 toks
+--     let (expr, _rest) = pratt 0 toks
 --         res = match env expr
 --     case res of
 --
@@ -110,17 +111,36 @@ type Parser = Parsec Void Text
 --         -- Call name args -> match env (Call name args)
 --         _ -> pure expr
 
+mapEval :: Env -> [Text] -> IO [Expr]
+mapEval env lines = do
+    mapM (h env) lines
+    where
+    h :: Env -> Text -> IO Expr
+    h env input = do
+        case runParser (exprP <* eof) "" input of
+            Left _ -> pure $ VString input
+            Right tokens -> do
+                let (expr, _rest) = pratt 0 tokens
 
-eval :: Env -> Text -> IO Expr
-eval env input =
-    case runParser (exprP <* eof) "" input of
-        Left _ -> pure $ VString input
-        Right tokens -> do
-            let (expr, _rest) = expression 0 tokens
+                case match env expr of
+                    res -> pure res
 
-            case match env expr of
-                res -> pure res
+runExprP input = runParser (exprP <* eof) "" input
 
+eval :: Env -> Expr -> IO Expr
+eval env expr = do
+    undefined
+
+    -- case runExprP of
+    --     _ -> undefined
+
+    -- case expr of
+    --     EPrint arg -> do
+    --         val <- eva env arg
+    --         print val
+    --         pure val
+    --     _ -> do
+    --         pure (match env expr)
 
 finalValue :: Expr -> Aeson.Value
 
@@ -145,6 +165,7 @@ aesonToExpr Aeson.Null       = VNull
 
 queryEnvRespBody :: Env -> Text -> Expr
 queryEnvRespBody env q =
+    -- PICKUP lens after it's alive
     case HM.lookup "RESP_BODY" env of
         Nothing -> VString ""
         Just root -> case queryBody (Text.unpack q) root of
@@ -191,6 +212,10 @@ match env = go
     go (App (Fn "debug") (VString q)) =
         EPrint (queryEnvRespBody env q)
 
+
+    -- ??
+    -- go (App (Fn "request") (VString q)) =
+    --     Expr "POST"
 
     go (App (Fn "jsonpath") (VString q)) =
         queryEnvRespBody env q
@@ -360,10 +385,16 @@ render env (Aeson.String acc) ((R t):rest) =
     render env (Aeson.String grow) rest
 
 render env (Aeson.String acc) ((L t):rest) = do
-    evaled :: Expr <- eval env t
+    xp :: Expr <- case runExprP t of
+            Left _ -> pure $ VString t
+            Right tokens -> do
+                let (expr, _rest) = pratt 0 tokens
+                pure expr
+
+    -- evaled :: Expr <- eval env t
+    let evaled = match env xp
 
     -- render necessitates for effective final values to be string.
-    -- let str = case finalValue env evaled of
     let str = case finalValue evaled of
             Aeson.String txt -> show' txt
             Aeson.Object obj -> show obj
