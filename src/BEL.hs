@@ -41,11 +41,18 @@ import qualified Data.ByteString.Lazy as LBS
 import Network.HTTP.Client (Response (..), Request (..))
 import qualified Data.Text.Encoding as TE
 
+import Network.HTTP.Client          (Response (..), Request (..), defaultRequest,
+                                      RequestBody (..)
+                                      -- , ResponseClose (..)
+                                      , createCookieJar)
+import Network.HTTP.Client.Internal (ResponseClose (..), Response (..))
+import Network.HTTP.Types.Status    (mkStatus)
+import Network.HTTP.Types.Version   (http11)
+
+
 import qualified BEL.BatteriesMain as BEL
 import           BEL.Pratt
 
-
--- ?? : parametrized fn invocation "loremIpsum 5" -> ... BEL.loremChars 5
 
 
 -- Space consumer
@@ -127,7 +134,64 @@ showRespBody env =
     VString (TE.decodeUtf8 (LBS.toStrict lbs))
 
 dummy :: En
-dummy = undefined
+-- dummy = undefined
+dummy = En
+  { responseCopy = Response
+      { responseStatus     = mkStatus 200 "OK"
+      , responseVersion    = http11
+      , responseHeaders    =
+          [ ("Content-Type",     "application/json")
+          , ("X-Request-Id",     "a]bc-1234-def0-5678")
+          , ("Cache-Control",    "no-store")
+          ]
+      -- , responseBody       = "{\"userId\":42,\"name\":\"Alice\",\"roles\":[\"admin\",\"editor\"],\"meta\":{\"theme\":\"dark\"}}"
+      , responseBody       = "{\"page\":1,\"userId\":42,\"name\":\"Alice\",\"roles\":[\"admin\",\"editor\"],\"meta\":{\"theme\":\"dark\"}}"
+      , responseCookieJar  = createCookieJar []
+      -- , responseClose'     = ResponseClose (pure ())
+      -- , responseOriginalRequest = defaultRequest
+      --     { host   = "api.example.com"
+      --     , port   = 443
+      --     , secure = True
+      --     , path   = "/v1/users/42"
+      --     , method = "GET"
+      --     }
+      }
+
+  , requestCopy = defaultRequest
+      { method         = "POST"
+      , host           = "api.example.com"
+      , port           = 443
+      , secure         = True
+      , path           = "/v1/users"
+      , requestHeaders =
+          [ ("Content-Type",  "application/json")
+          , ("Authorization", "Bearer tok_live_abc123")
+          , ("Accept",        "application/json")
+          ]
+      , requestBody    = RequestBodyLBS
+          "{\"name\":\"Bob\",\"email\":\"bob@example.com\"}"
+      , queryString    = "?sort=asc&limit=10"
+      }
+
+  , bindings = HM.fromList
+      [ ("BASE_URL",    Aeson.String "https://api.example.com")
+      , ("TOKEN",       Aeson.String "tok_live_abc123")
+      , ("MAX_RETRIES", Aeson.Number 3)
+      -- , ("USER_META",   Aeson.Object (HM.fromList
+      --       [ ("theme", Aeson.String "dark")
+      --       , ("lang",  Aeson.String "en")
+      --       , ("prefs", Aeson.Object (HM.fromList
+      --             [ ("notifications", Aeson.Bool True)
+      --             , ("fontSize",      Aeson.Number 14)
+      --             ]))
+      --       ]))
+      , ("TAGS",        Aeson.Array (Vec.fromList
+            [ Aeson.String "production"
+            , Aeson.String "v2"
+            ]))
+      ]
+  }
+
 
 eval :: En -> Expr -> IO Expr
 eval env = rec

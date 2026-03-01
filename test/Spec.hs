@@ -21,7 +21,6 @@ import           BEL.Pratt
 
 main :: IO ()
 main = defaultMain $ testGroup "Tests"
-  -- [ test7 ]
 
   -- [ testGroup "Examples"   [ test0
   --                          , test1 , test2 , test3 , test4 , test5 , test6
@@ -30,14 +29,16 @@ main = defaultMain $ testGroup "Tests"
   --                          , test13 , test14 , test15 , testAmbiguity
   --                          , testQueryEnvRespBody
   --                          ]
-  [ testGroup "Properties" [ testProperty "render identity simple" prop_render_identity_simple
-                           , testProperty "render doesn't crash" prop_render_doesnt_crash
-                           , testProperty "queryEnvRespBody missing" prop_queryEnvRespBody_missing
-                           , testProperty "queryEnvRespBody root" prop_queryEnvRespBody_root
-                           , testProperty "queryEnvRespBody nested" prop_queryEnvRespBody_nested
-                           -- , testProperty "eval doesn't crash" prop_eval_doesnt_crash
-                           ]
-  , testGroup "Examples" [ testRespBodyAccess
+
+  -- [ testGroup "Properties" [ testProperty "render identity simple" prop_render_identity_simple
+  --                          , testProperty "render doesn't crash" prop_render_doesnt_crash
+  --                          , testProperty "queryEnvRespBody missing" prop_queryEnvRespBody_missing
+  --                          , testProperty "queryEnvRespBody root" prop_queryEnvRespBody_root
+  --                          , testProperty "queryEnvRespBody nested" prop_queryEnvRespBody_nested
+  --                          -- , testProperty "eval doesn't crash" prop_eval_doesnt_crash
+  --                          ]
+
+  [ testGroup "Examples" [ testRespBodyAccess
                          , testRespBodyAccessMissingEnv
                          , testLiteralsEval
                          , testLiteralsRun
@@ -46,6 +47,8 @@ main = defaultMain $ testGroup "Tests"
                          , testJsonpathEval
                          , testJsonpathRun
                          ]
+  -- [ testGroup "single" [ testJsonpathRun ]
+
   ]
 
 start = En { bindings = HM.empty }
@@ -95,8 +98,8 @@ testJsonpathEval = testCase "jsonpath eval" $ do
 testJsonpathRun :: TestTree
 testJsonpathRun = testCase "jsonpath run" $ do
     -- PICKUP
-    -- r0 <- run dummy "jsonpath \"$.data.page\" != 1"
-    r0 <- run start "jsonpath \"$.data.page\" != 1"
+    -- r0 <- run dummy "jsonpath \"$.page\" == 1"
+    r0 <- run dummy "jsonpath \"$.page\""
     case r0 of
         -- (VNum 0, VNum 1572) -> pure ()
         els -> assertFailure $ "got:\t" ++ show els

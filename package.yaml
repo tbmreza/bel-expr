@@ -36,6 +36,7 @@ dependencies:
 - vector
 - lens
 - http-client
+- http-types
 
 ghc-options:
 - -Wall
