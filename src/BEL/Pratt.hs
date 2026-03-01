@@ -29,15 +29,10 @@ import Network.HTTP.Client (Response (..), Request (..))
 type Env = HM.HashMap String Aeson.Value
 
 data En = En
-  -- { responseCopy :: Maybe (Response ByteString)
-  -- , requestCopy ::  Maybe Request
   { responseCopy :: Response ByteString
   , requestCopy ::  Request
   , bindings ::     HM.HashMap String Aeson.Value
-  -- } deriving (Show)
   }
-
--- makeLenses ''En
 
 data Token =
     TUnit

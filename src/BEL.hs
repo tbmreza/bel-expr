@@ -129,9 +129,6 @@ showRespBody env =
 dummy :: En
 dummy = undefined
 
--- plan
--- pratt ::  Env -> Int -> [Token] -> (Expr, [Token])
--- match ::  Env -> Expr -> Expr
 eval :: En -> Expr -> IO Expr
 eval env = rec
     where
