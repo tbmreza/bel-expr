@@ -17,11 +17,7 @@ import           Data.Text (Text)
 import qualified Data.Text as Text
 
 import           BEL
-
--- evalValue :: BEL.Env -> Text -> IO Aeson.Value
--- evalValue env input = do
---     e <- BEL.eval env input
---     pure $ BEL.finalValue e
+import           BEL.Pratt
 
 main :: IO ()
 main = defaultMain $ testGroup "Tests"
@@ -33,7 +29,6 @@ main = defaultMain $ testGroup "Tests"
   --                          , test8 , test9 , test10 , test11 , test12
   --                          , test13 , test14 , test15 , testAmbiguity
   --                          , testQueryEnvRespBody
-  --                          , testDebugPrefix
   --                          ]
   [ testGroup "Properties" [ testProperty "render identity simple" prop_render_identity_simple
                            , testProperty "render doesn't crash" prop_render_doesnt_crash
@@ -42,25 +37,89 @@ main = defaultMain $ testGroup "Tests"
                            , testProperty "queryEnvRespBody nested" prop_queryEnvRespBody_nested
                            -- , testProperty "eval doesn't crash" prop_eval_doesnt_crash
                            ]
+  , testGroup "Examples" [ testRespBodyAccess
+                         , testRespBodyAccessMissingEnv
+                         , testLiteralsEval
+                         , testLiteralsRun
+                         , testArithPratt
+                         , testJsonpathPratt
+                         , testJsonpathEval
+                         , testJsonpathRun
+                         ]
   ]
--- eval :: Env -> Expr -> IO Expr
 
--- PICKUP what test invokes env RESP_BODY access
--- env = HM.fromList [("RESP_BODY", obj)]
--- mapEval env [> jsonpath "$.data"]
+start = En { bindings = HM.empty }
+
+testLiteralsEval :: TestTree
+testLiteralsEval = testCase "identity eval" $ do
+    r0 <- eval start (VNum 0)
+    r1 <- eval start (EPrint (VNum 1572))
+    case (r0, r1) of
+        (VNum 0, VNum 1572) -> pure ()
+        -- els -> assertFailure $ "got:\t" ++ show els
+
+testLiteralsRun :: TestTree
+testLiteralsRun = testCase "identity run" $ do
+    r0 <- run start "0"
+    r1 <- run start "1572"
+    case (r0, r1) of
+        (VNum 0, VNum 1572) -> pure ()
+
+testArithPratt :: TestTree
+testArithPratt = testCase "arith pratt" $ do
+    case pratt 0 [TNum 421] of
+        (VNum 421, []) -> pure ()
+
+    case pratt 0 [TNum 11, TPlus, TNum 22] of
+        (Add (VNum 11.0) (VNum 22.0), []) -> pure ()
+
+    -- 100 is arbitrarily larger number than TPlus' 10 bp
+    case pratt 100 [TNum 11, TPlus, TNum 22] of
+        (VNum 11.0, [TPlus, TNum 22]) -> pure ()
+
+-- >jsonpath "$.data.page" == 1
+-- requests are statically checked, so it make sense in this block that request is treated "natively"
+
+testJsonpathPratt :: TestTree
+testJsonpathPratt = testCase "jsonpath pratt" $ do
+    case pratt 0 [TJsonpath, TQuoted "$.data.page", TEq, TNum 1] of
+        (Eq (App (Fn "jsonpath") (VString "$.data.page")) (VNum 1.0), []) -> pure ()
+        els -> assertFailure $ "got:\t" ++ show els
+
+testJsonpathEval :: TestTree
+testJsonpathEval = testCase "jsonpath eval" $ do
+    r0 <- eval start (Eq (App (Fn "jsonpath") (VString "$.data.page")) (VNum 1.0))
+    case r0 of
+        (VBool False) -> pure ()
+
+testJsonpathRun :: TestTree
+testJsonpathRun = testCase "jsonpath run" $ do
+    -- PICKUP
+    -- r0 <- run dummy "jsonpath \"$.data.page\" != 1"
+    r0 <- run start "jsonpath \"$.data.page\" != 1"
+    case r0 of
+        -- (VNum 0, VNum 1572) -> pure ()
+        els -> assertFailure $ "got:\t" ++ show els
 
 
--- -- (auto)
--- testDebugPrefix :: TestTree
--- testDebugPrefix = testCase "debug prefix safety" $ do
---     -- "debug123" should NOT be parsed as "debug(123)"
---     let env = HM.empty
---     res <- BEL.eval env "debug123"
---     case res of
---         _ -> pure ()
---         -- VString "debug123" -> pure ()
---         -- VIdent "debug123" -> pure ()
---         -- _ -> assertFailure $ "Expected VString/VIdent \"debug123\", got: " ++ show res
+testRespBodyAccess :: TestTree
+testRespBodyAccess = testCase "RESP_BODY access positive" $ do
+    let root :: Aeson.Value = [aesonQQ| { "data": "hello" } |]
+        env :: BEL.Env = HM.fromList [("RESP_BODY", root)]
+
+    res <- BEL.mapEval env ["jsonpath \"$.data\""]
+    case res of
+        [VString "hello"] -> pure ()
+        els -> assertFailure $ "Expected [VString \"hello\"], got: " ++ show els
+
+testRespBodyAccessMissingEnv :: TestTree
+testRespBodyAccessMissingEnv = testCase "RESP_BODY access missing env" $ do
+    let env :: BEL.Env = HM.empty
+
+    res <- BEL.mapEval env ["jsonpath \"$.data\""]
+    case res of
+        [VString ""] -> pure ()
+        els -> assertFailure $ "Expected [VString \"\"], got: " ++ show els
 
 prop_queryEnvRespBody_missing :: String -> Property
 prop_queryEnvRespBody_missing path =

@@ -1,12 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module BEL.Pratt
-  ( Env
-  , Token(..)
-  , Expr(..)
-  , pratt
-  ) where
+  -- ( Env
+  -- , En
+  -- , Token(..)
+  -- , Expr(..)
+  -- , pratt
+  -- ) where
+    where
 
 import qualified Data.HashMap.Strict as HM
 import           Control.Lens
@@ -19,7 +22,22 @@ import qualified Data.Text as Text
 import qualified Data.Aeson as Aeson
 import           Data.Scientific (Scientific)
 
+-- import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString.Lazy (ByteString)
+import Network.HTTP.Client (Response (..), Request (..))
+
 type Env = HM.HashMap String Aeson.Value
+
+data En = En
+  -- { responseCopy :: Maybe (Response ByteString)
+  -- , requestCopy ::  Maybe Request
+  { responseCopy :: Response ByteString
+  , requestCopy ::  Request
+  , bindings ::     HM.HashMap String Aeson.Value
+  -- } deriving (Show)
+  }
+
+-- makeLenses ''En
 
 data Token =
     TUnit

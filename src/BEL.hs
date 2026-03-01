@@ -2,13 +2,16 @@
 
 module BEL
   ( Env
+  , En (..)
+  , run
   , partitions, Part(..)
   , render
   , mapEval
-  -- For testing:
-  -- , toExpr
+  , eval
   , Token(..), Expr(..), match, finalValue, queryEnvRespBody
+  , dummy
   ) where
+    -- where
 
 import Debug.Trace
 
@@ -34,54 +37,15 @@ import           Text.Megaparsec ( Parsec, (<|>), some
                                  , eof
                                  )
 
+import qualified Data.ByteString.Lazy as LBS
+import Network.HTTP.Client (Response (..), Request (..))
+import qualified Data.Text.Encoding as TE
+
 import qualified BEL.BatteriesMain as BEL
 import           BEL.Pratt
 
 
 -- ?? : parametrized fn invocation "loremIpsum 5" -> ... BEL.loremChars 5
-
--- toExpr :: Env -> [Token] -> Expr
--- toExpr env toks =
---     let (expr, _rest) = pratt 0 toks
---         res = match env expr
---     case res of
---
---         EPrint e -> do
---             print (finalValue e)
---             pure (VBool True)
---
---         _ -> pure res
-
-
--- toExpr :: Env -> [Token] -> IO Expr
---
--- -- toExpr _env (TIdentifier "debug" : TQuoted s : []) = do
--- --     print (finalValue (VString "hardcodid"))
--- --     pure (VBool True)
---
--- -- toExpr _env (TIdentifier thunk : TParenOpn : TParenCls : []) = do
--- --     case thunk of
--- --         "today" -> do
--- --             tdy <- BEL.ioToday
--- --             pure $ VString (Text.pack tdy)
--- --         "year" -> do
--- --             yr <- BEL.ioYear
--- --             pure $ VString (Text.pack yr)
--- --         "dayOfMonth" -> do
--- --             dom <- BEL.ioDayOfMonth
--- --             pure $ VString (Text.pack dom)
--- --         _ -> pure $ VString ""
---
--- toExpr env toks = do
---     let (expr, _rest) = pratt 0 toks
---         res = match env expr
---     case res of
---
---         EPrint e -> do
---             print (finalValue e)
---             pure (VBool True)
---
---         _ -> pure res
 
 
 -- Space consumer
@@ -94,23 +58,18 @@ number = do
 
 type Parser = Parsec Void Text
 
--- (auto) gemini's untangling proposal:
--- pratt ::  Env -> Int -> [Token] -> (Expr, [Token])
--- toExpr :: Env -> [Token] -> (Expr, [Token])
--- match ::  Env -> Expr -> Expr
--- eval ::   Env -> Expr -> IO Expr
--- eval env expr = case expr of
---     EPrint arg -> do
---         val <- eval env arg
---         print val 
---         return val
---     _ -> return (match env expr)
+tokenize :: Text -> [Token]
+tokenize input =
+    -- From BEL's perspective, runParser is a muddy terminology. In any case we
+    -- combinatorically defined exprP and get tokens here.
+    case runParser (exprP <* eof) "" input of
+        Left _ -> []
+        Right tokens -> tokens
 
--- efal :: Env -> Expr -> IO Expr
--- efal env expr = 
---     case expr of
---         -- Call name args -> match env (Call name args)
---         _ -> pure expr
+run :: En -> Text -> IO Expr
+run env input = do
+    let (expr, _rest) = pratt 0 (tokenize input)
+    eval env expr
 
 mapEval :: Env -> [Text] -> IO [Expr]
 mapEval env lines = do
@@ -122,26 +81,13 @@ mapEval env lines = do
             Left _ -> pure $ VString input
             Right tokens -> do
                 let (expr, _rest) = pratt 0 tokens
+                -- matched <- eval env expr
 
+                -- case matched of
                 case match env expr of
                     res -> pure res
 
 runExprP input = runParser (exprP <* eof) "" input
-
-eval :: Env -> Expr -> IO Expr
-eval env expr = do
-    undefined
-
-    -- case runExprP of
-    --     _ -> undefined
-
-    -- case expr of
-    --     EPrint arg -> do
-    --         val <- eva env arg
-    --         print val
-    --         pure val
-    --     _ -> do
-    --         pure (match env expr)
 
 finalValue :: Expr -> Aeson.Value
 
@@ -173,6 +119,32 @@ queryEnvRespBody env q =
             Just one -> aesonToExpr one
 
 
+
+showRespBody :: En -> Expr
+showRespBody env =
+    -- ??: not all responseBody is textual. also, "print N first characters" seems useful
+    let lbs = responseBody (responseCopy env) in
+    VString (TE.decodeUtf8 (LBS.toStrict lbs))
+
+dummy :: En
+dummy = undefined
+
+-- plan
+-- pratt ::  Env -> Int -> [Token] -> (Expr, [Token])
+-- match ::  Env -> Expr -> Expr
+eval :: En -> Expr -> IO Expr
+eval env = rec
+    where
+    rec :: Expr -> IO Expr
+
+    rec (EPrint arg) = do
+        v <- rec arg
+        print v
+        pure v
+
+    rec e = pure (match HM.empty e)
+
+
 match :: Env -> Expr -> Expr
 match env = go
     where
@@ -182,6 +154,7 @@ match env = go
 
     go (VIdent t) =
         case HM.lookup (Text.unpack t) env of
+        -- case HM.lookup (Text.unpack t) (dummy ^. bindings) of
             Just v -> aesonToExpr v
             Nothing -> VString t
 
@@ -207,13 +180,12 @@ match env = go
     -- functionality being its side effect of printing to stdout.
 
     -- ??: generalize $ @ %  >debug "$.method"
-    -- ?? : pattern match when queryBody returns none, then lookup, else literal
-    -- debug $.method
-    go (App (Fn "debug") (VString q)) =
-        EPrint (queryEnvRespBody env q)
+    -- go (App (Fn "debug") (VString q)) =  -- ?? jsonpath-ing json response bodies
+    go (App (Fn "debug") (VString "$")) =
+        EPrint (showRespBody dummy)
 
 
-    -- ??
+    -- ??: request <arg> probably handled earlier than when handed to BEL
     -- go (App (Fn "request") (VString q)) =
     --     Expr "POST"
 
