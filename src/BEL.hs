@@ -1,8 +1,7 @@
 {-# LANGUAGE BangPatterns, OverloadedStrings, ScopedTypeVariables, QuasiQuotes #-}
 
 module BEL
-  ( Env
-  , En (..)
+  ( Env(..)
   , run
   , partitions, Part(..)
   , render
@@ -73,7 +72,7 @@ tokenize input =
         Left _ -> []
         Right tokens -> tokens
 
-run :: En -> Text -> IO Expr
+run :: Env -> Text -> IO Expr
 run env input = do
     let (expr, _rest) = pratt 0 (tokenize input)
     eval env expr
@@ -119,23 +118,25 @@ aesonToExpr Aeson.Null       = VNull
 
 queryEnvRespBody :: Env -> Text -> Expr
 queryEnvRespBody env q =
-    case env ^? ix "RESP_BODY" of
-        Nothing -> VString ""
-        Just root -> case queryBody (Text.unpack q) root of
-            Nothing -> VString ""
-            Just one -> aesonToExpr one
+    let lbs = responseBody (responseCopy env) in
+    VString (TE.decodeUtf8 (LBS.toStrict lbs))
+
+    -- case env ^? ix "RESP_BODY" of
+    --     Nothing -> VString ""
+    --     Just root -> case queryBody (Text.unpack q) root of
+    --         Nothing -> VString ""
+    --         Just one -> aesonToExpr one
 
 
 
-showRespBody :: En -> Expr
+showRespBody :: Env -> Expr
 showRespBody env =
     -- ??: not all responseBody is textual. also, "print N first characters" seems useful
     let lbs = responseBody (responseCopy env) in
     VString (TE.decodeUtf8 (LBS.toStrict lbs))
 
-dummy :: En
--- dummy = undefined
-dummy = En
+dummy :: Env
+dummy = Env
   { responseCopy = Response
       { responseStatus     = mkStatus 200 "OK"
       , responseVersion    = http11
@@ -193,7 +194,7 @@ dummy = En
   }
 
 
-eval :: En -> Expr -> IO Expr
+eval :: Env -> Expr -> IO Expr
 eval env = rec
     where
     rec :: Expr -> IO Expr
@@ -203,7 +204,7 @@ eval env = rec
         print v
         pure v
 
-    rec e = pure (match HM.empty e)
+    rec e = pure (match env e)
 
 
 match :: Env -> Expr -> Expr
@@ -214,10 +215,10 @@ match env = go
     go final@(VNum _) = final
 
     go (VIdent t) =
-        case HM.lookup (Text.unpack t) env of
-        -- case HM.lookup (Text.unpack t) (dummy ^. bindings) of
-            Just v -> aesonToExpr v
-            Nothing -> VString t
+        undefined
+        -- case HM.lookup (Text.unpack t) env of
+        --     Just v -> aesonToExpr v
+        --     Nothing -> VString t
 
     go (Neg e) =
         case go e of
@@ -250,6 +251,10 @@ match env = go
     -- go (App (Fn "request") (VString q)) =
     --     Expr "POST"
 
+    -- PICKUP
+    -- go (App (Fn "jsonpath") (VString "$.page")) =
+    -- go (App (Fn "jsonpath") (VString "$")) =
+    -- go (App (Fn "jsonpath") (VString "USER_META.theme")) =
     go (App (Fn "jsonpath") (VString q)) =
         queryEnvRespBody env q
 
