@@ -86,12 +86,12 @@ testArithPratt = testCase "arith pratt" $ do
 testJsonpathPratt :: TestTree
 testJsonpathPratt = testCase "jsonpath pratt" $ do
     case pratt 0 [TJsonpath, TQuoted "$.data.page", TEq, TNum 1] of
-        (Eq (App (Fn "jsonpath") (VString "$.data.page")) (VNum 1.0), []) -> pure ()
+        (Eq (EJsonpath (VString "$.data.page")) (VNum 1.0), []) -> pure ()
         els -> assertFailure $ "got:\t" ++ show els
 
 testJsonpathEval :: TestTree
 testJsonpathEval = testCase "jsonpath eval" $ do
-    r0 <- eval dummy (Eq (App (Fn "jsonpath") (VString "$.data.page")) (VNum 1.0))
+    r0 <- eval dummy (Eq (EJsonpath (VString "$.data.page")) (VNum 1.0))
     case r0 of
         (VBool False) -> pure ()
 

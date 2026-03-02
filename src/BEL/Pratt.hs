@@ -56,8 +56,6 @@ data Expr =
   | VNum    !Scientific
   | VIdent  !Text
 
-  | Fn  String
-
   | Neg Expr
   | Eq  Expr Expr
   | Neq Expr Expr
@@ -68,6 +66,7 @@ data Expr =
   | Add Expr Expr | Sub Expr Expr | Mul Expr Expr | Div Expr Expr
 
   | EPrint Expr
+  | EDebug Expr | EJsonpath Expr
     deriving (Show, Eq)
 
 -- Pratt Parser Implementation
@@ -93,11 +92,11 @@ nud (TQuoted s) rest = (VString s, rest)
 
 nud (TIdentifier "debug") rest =
     let (e, rest') = pratt 0 rest
-    in (App (Fn "debug") e, rest')
+    in (EDebug e, rest')
 
 nud (TIdentifier t) rest = (VIdent t, rest)
 
-nud TJsonpath (TQuoted t : rest) = (App (Fn "jsonpath") (VString t), rest)
+nud TJsonpath (TQuoted t : rest) = (EJsonpath (VString t), rest)
 
 nud TParenOpn rest =
     let (e, rest') = pratt 0 rest

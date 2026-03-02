@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns, OverloadedStrings, ScopedTypeVariables, QuasiQuotes #-}
+{-# LANGUAGE GADTs #-}
 
 module BEL
   ( Env(..)
@@ -206,6 +207,12 @@ eval env = rec
 
     rec e = pure (match env e)
 
+data Checked
+data Unchecked
+
+data JsonpathStr state where
+    JsonpathStrNew :: String -> JsonpathStr Unchecked
+    JsonpathStrOk :: String -> JsonpathStr Checked
 
 match :: Env -> Expr -> Expr
 match env = go
@@ -240,22 +247,21 @@ match env = go
 
     -- `debug` is a special assertion line that always evaluates to true, main
     -- functionality being its side effect of printing to stdout.
+    -- go (EDebug )
 
     -- ??: generalize $ @ %  >debug "$.method"
     -- go (App (Fn "debug") (VString q)) =  -- ?? jsonpath-ing json response bodies
-    go (App (Fn "debug") (VString "$")) =
+    -- go (App (Fn "debug") (VString "$")) =
+    go (EDebug (VString "$")) =
         EPrint (showRespBody dummy)
 
-
-    -- ??: request <arg> probably handled earlier than when handed to BEL
-    -- go (App (Fn "request") (VString q)) =
-    --     Expr "POST"
-
-    -- PICKUP
+    -- jsonpath-query accepting Expr variant
+    -- Querying Expr
     -- go (App (Fn "jsonpath") (VString "$.page")) =
     -- go (App (Fn "jsonpath") (VString "$")) =
     -- go (App (Fn "jsonpath") (VString "USER_META.theme")) =
-    go (App (Fn "jsonpath") (VString q)) =
+    -- go (App (Fn "jsonpath") (VString q)) =
+    go (EJsonpath (VString q)) =
         queryEnvRespBody env q
 
     go (Add e1 e2) =
@@ -278,7 +284,9 @@ match env = go
             (VNum v1, VNum v2) -> VNum (v1 / v2)
             (r1, r2) -> Div r1 r2
 
-    go e = e
+    -- ??: request <arg> probably handled earlier than when handed to BEL
+    -- go (App (Fn "request") (VString q)) =
+    --     Expr "POST"
 
 -- Expect one matching Value.
 queryBody :: String -> Aeson.Value -> Maybe Aeson.Value
