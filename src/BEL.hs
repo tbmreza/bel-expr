@@ -11,7 +11,7 @@ module BEL
   , Token(..), Expr(..), match, finalValue, queryEnvRespBody
   , dummy
   ) where
-    -- where
+
 
 import Debug.Trace
 
@@ -23,7 +23,7 @@ import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Void (Void)
 import qualified Data.Vector as Vec
-import qualified Data.Aeson as Aeson (Value(..))
+import qualified Data.Aeson as Aeson (Value(..), decode)
 import qualified Data.Aeson.JSONPath as Aeson (query)
 import qualified Text.Megaparsec.Char.Lexer as L
 import qualified Text.Megaparsec.Char as C
@@ -117,18 +117,14 @@ aesonToExpr (Aeson.Array v)  = VArray v
 aesonToExpr Aeson.Null       = VNull
 
 
+-- ??: String responseBody assumption can get us a long way.
 queryEnvRespBody :: Env -> Text -> Expr
 queryEnvRespBody env q =
-    let lbs = responseBody (responseCopy env) in
-    VString (TE.decodeUtf8 (LBS.toStrict lbs))
-
-    -- case env ^? ix "RESP_BODY" of
-    --     Nothing -> VString ""
-    --     Just root -> case queryBody (Text.unpack q) root of
-    --         Nothing -> VString ""
-    --         Just one -> aesonToExpr one
-
-
+    let lbs :: LBS.ByteString = responseBody (responseCopy env) in
+    let Just root :: Maybe Aeson.Value = Aeson.decode lbs in
+    case queryBody (show' q) root of
+        Just av -> aesonToExpr av
+        _ -> VNull
 
 showRespBody :: Env -> Expr
 showRespBody env =
@@ -200,19 +196,18 @@ eval env = rec
     where
     rec :: Expr -> IO Expr
 
-    rec (EPrint arg) = do
+    rec (ETrace arg) = do
         v <- rec arg
         print v
         pure v
 
+    -- `debug` is for use as special assertion line that always evaluates to
+    -- true.
+    rec (EDebug arg) = do
+        _ <- rec (ETrace arg)
+        pure (VBool True)
+
     rec e = pure (match env e)
-
-data Checked
-data Unchecked
-
-data JsonpathStr state where
-    JsonpathStrNew :: String -> JsonpathStr Unchecked
-    JsonpathStrOk :: String -> JsonpathStr Checked
 
 match :: Env -> Expr -> Expr
 match env = go
@@ -223,9 +218,6 @@ match env = go
 
     go (VIdent t) =
         undefined
-        -- case HM.lookup (Text.unpack t) env of
-        --     Just v -> aesonToExpr v
-        --     Nothing -> VString t
 
     go (Neg e) =
         case go e of
@@ -245,15 +237,11 @@ match env = go
             (VNum n1, VNum n2) -> VBool (n1 >= n2)
             _ -> VBool False
 
-    -- `debug` is a special assertion line that always evaluates to true, main
-    -- functionality being its side effect of printing to stdout.
-    -- go (EDebug )
-
     -- ??: generalize $ @ %  >debug "$.method"
     -- go (App (Fn "debug") (VString q)) =  -- ?? jsonpath-ing json response bodies
     -- go (App (Fn "debug") (VString "$")) =
-    go (EDebug (VString "$")) =
-        EPrint (showRespBody dummy)
+    -- go (EDebug (VString "$")) =
+    --     ETrace (showRespBody dummy)
 
     -- jsonpath-query accepting Expr variant
     -- Querying Expr
@@ -291,9 +279,9 @@ match env = go
 -- Expect one matching Value.
 queryBody :: String -> Aeson.Value -> Maybe Aeson.Value
 queryBody q root = case Aeson.query q root of
-    Left _ -> Nothing
+    Left _ -> trace ("qbn1;q=" ++ show q ++ ";root=" ++ show root) Nothing
     Right v -> case Vec.uncons v of
-        Nothing ->       Nothing
+        Nothing ->       trace "qbn2" Nothing
         Just (one, _) -> Just one
 
 -- (auto)

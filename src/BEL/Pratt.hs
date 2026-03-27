@@ -1,10 +1,11 @@
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 module BEL.Pratt
   -- ( Env
-  -- , En
   -- , Token(..)
   -- , Expr(..)
   -- , pratt
@@ -47,27 +48,47 @@ data Token =
   | TNum Scientific
     deriving (Show, Eq)
 
-data Expr =
-    VBool   !Bool
-  | VObj    !Aeson.Object
-  | VArray  !Aeson.Array
-  | VNull
-  | VString !Text
-  | VNum    !Scientific
-  | VIdent  !Text
+data Expr where
+    VBool   :: !Bool         -> Expr
+    VObj    :: !Aeson.Object -> Expr
+    VArray  :: !Aeson.Array  -> Expr
+    VNull   :: Expr
+    VString :: !Text         -> Expr
+    VNum    :: !Scientific   -> Expr
+    VIdent  :: !Text         -> Expr
 
-  | Neg Expr
-  | Eq  Expr Expr
-  | Neq Expr Expr
-  | Lte Expr Expr
-  | Gte Expr Expr
-  | App Expr Expr
+    Neg :: Expr -> Expr
+    Eq  :: Expr -> Expr -> Expr
+    Neq :: Expr -> Expr -> Expr
+    Lte :: Expr -> Expr -> Expr
+    Gte :: Expr -> Expr -> Expr
+    App :: Expr -> Expr -> Expr
 
-  | Add Expr Expr | Sub Expr Expr | Mul Expr Expr | Div Expr Expr
+    Add :: Expr -> Expr -> Expr
+    Sub :: Expr -> Expr -> Expr
+    Mul :: Expr -> Expr -> Expr
+    Div :: Expr -> Expr -> Expr
 
-  | EPrint Expr
-  | EDebug Expr | EJsonpath Expr
-    deriving (Show, Eq)
+    EDebug    :: Expr -> Expr
+    ETrace    :: Expr -> Expr
+    EJsonpath :: Expr -> Expr
+    -- EJsonpat  :: JsonpathStr Checked -> Expr
+  -- >debug data
+  -- >debug "$"
+  -- >debug "$.maybe.null.at.path"
+  -- >debug "$.ill.path.."
+
+-- data Checked
+-- data Unchecked
+--
+-- data JsonpathStr state where
+--     JsonpathStrNew :: String -> JsonpathStr Unchecked
+--     JsonpathStrOk  :: String -> JsonpathStr Checked
+--
+-- deriving instance Show (JsonpathStr state)
+-- deriving instance Eq   (JsonpathStr state)
+deriving instance Show Expr
+deriving instance Eq   Expr
 
 -- Pratt Parser Implementation
 
@@ -90,13 +111,15 @@ nud (TNum n) rest =    (VNum n, rest)
 nud (TBool b) rest =   (VBool b, rest)
 nud (TQuoted s) rest = (VString s, rest)
 
-nud (TIdentifier "debug") rest =
-    let (e, rest') = pratt 0 rest
-    in (EDebug e, rest')
+-- nud (TIdentifier "debug") rest =
+--     let (e, rest') = pratt 0 rest
+--     in (EDebug e, rest')
 
 nud (TIdentifier t) rest = (VIdent t, rest)
 
-nud TJsonpath (TQuoted t : rest) = (EJsonpath (VString t), rest)
+nud TJsonpath (TQuoted t : rest) =
+    (EJsonpath (VString t), rest)
+    -- (EJsonpat (tried t), rest)
 
 nud TParenOpn rest =
     let (e, rest') = pratt 0 rest
@@ -106,6 +129,11 @@ nud TParenOpn rest =
 
 nud t _ = (VString (Text.pack $ show [t]), [])
 
+-- ??: Data.Aeson.JSONPath  explore other interfaces than `query`
+
+-- tried :: Text -> JsonpathStr Checked
+-- tried t =
+--     JsonpathStrOk (show t)
 
 -- Left denotation "led".
 led :: Token -> Expr -> [Token] -> (Expr, [Token])

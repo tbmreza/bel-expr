@@ -56,7 +56,7 @@ start = Env { bindings = HM.empty }
 testLiteralsEval :: TestTree
 testLiteralsEval = testCase "identity eval" $ do
     r0 <- eval start (VNum 0)
-    r1 <- eval start (EPrint (VNum 1572))
+    r1 <- eval start (ETrace (VNum 1572))
     case (r0, r1) of
         (VNum 0, VNum 1572) -> pure ()
         -- els -> assertFailure $ "got:\t" ++ show els
@@ -91,13 +91,13 @@ testJsonpathPratt = testCase "jsonpath pratt" $ do
 
 testJsonpathEval :: TestTree
 testJsonpathEval = testCase "jsonpath eval" $ do
-    r0 <- eval dummy (Eq (EJsonpath (VString "$.data.page")) (VNum 1.0))
+    r0 <- eval dummy (Eq (EJsonpath (VString "$.page")) (VNum 1.0))
     case r0 of
-        (VBool False) -> pure ()
+        (VBool True) -> pure ()
+        els -> assertFailure $ "got:\t" ++ show els
 
 testJsonpathRun :: TestTree
 testJsonpathRun = testCase "jsonpath run" $ do
-    -- r0 <- run dummy "jsonpath \"$.page\" == 1"
     r0 <- run dummy "jsonpath \"$.page\""
     case r0 of
         (VNum 1.0) -> pure ()
