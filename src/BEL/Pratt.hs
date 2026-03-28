@@ -40,7 +40,7 @@ data Token =
   | TBool Bool
   | TTrue | TFalse
   | TEq | TNeq | TLte | TGte
-  | TJsonpath
+  | TJsonpath | TDebug
   | TIdentifier Text
   | TQuoted Text
   | TParenOpn | TParenCls
@@ -49,6 +49,8 @@ data Token =
     deriving (Show, Eq)
 
 data Expr where
+    -- App :: Expr -> Expr -> Expr
+    VTrace    :: Expr -> Expr
     VBool   :: !Bool         -> Expr
     VObj    :: !Aeson.Object -> Expr
     VArray  :: !Aeson.Array  -> Expr
@@ -57,22 +59,20 @@ data Expr where
     VNum    :: !Scientific   -> Expr
     VIdent  :: !Text         -> Expr
 
-    Neg :: Expr -> Expr
-    Eq  :: Expr -> Expr -> Expr
-    Neq :: Expr -> Expr -> Expr
-    Lte :: Expr -> Expr -> Expr
-    Gte :: Expr -> Expr -> Expr
-    App :: Expr -> Expr -> Expr
+    ENeg :: Expr -> Expr
+    EEq  :: Expr -> Expr -> Expr
+    ENeq :: Expr -> Expr -> Expr
+    ELte :: Expr -> Expr -> Expr
+    EGte :: Expr -> Expr -> Expr
 
-    Add :: Expr -> Expr -> Expr
-    Sub :: Expr -> Expr -> Expr
-    Mul :: Expr -> Expr -> Expr
-    Div :: Expr -> Expr -> Expr
+    EAdd :: Expr -> Expr -> Expr
+    ESub :: Expr -> Expr -> Expr
+    EMul :: Expr -> Expr -> Expr
+    EDiv :: Expr -> Expr -> Expr
 
     EDebug    :: Expr -> Expr
-    ETrace    :: Expr -> Expr
     EJsonpath :: Expr -> Expr
-    -- EJsonpat  :: JsonpathStr Checked -> Expr
+
   -- >debug data
   -- >debug "$"
   -- >debug "$.maybe.null.at.path"
@@ -111,15 +111,16 @@ nud (TNum n) rest =    (VNum n, rest)
 nud (TBool b) rest =   (VBool b, rest)
 nud (TQuoted s) rest = (VString s, rest)
 
--- nud (TIdentifier "debug") rest =
---     let (e, rest') = pratt 0 rest
---     in (EDebug e, rest')
+-- Expr will evaluate to true with printing side-effect. Typically used in
+-- [Asserts] block though valid everywhere else in hhs.
+nud TDebug rest =
+    let (e, rest') = pratt 0 rest
+    in (EDebug e, rest')
 
 nud (TIdentifier t) rest = (VIdent t, rest)
 
 nud TJsonpath (TQuoted t : rest) =
     (EJsonpath (VString t), rest)
-    -- (EJsonpat (tried t), rest)
 
 nud TParenOpn rest =
     let (e, rest') = pratt 0 rest
@@ -128,8 +129,6 @@ nud TParenOpn rest =
         _ -> (e, rest')
 
 nud t _ = (VString (Text.pack $ show [t]), [])
-
--- ??: Data.Aeson.JSONPath  explore other interfaces than `query`
 
 -- tried :: Text -> JsonpathStr Checked
 -- tried t =
@@ -140,35 +139,35 @@ led :: Token -> Expr -> [Token] -> (Expr, [Token])
 
 led TPlus left rest =
     let (right, rest') = pratt 10 rest
-    in (Add left right, rest')
+    in (EAdd left right, rest')
 
 led TMinus left rest =
     let (right, rest') = pratt 10 rest
-    in (Sub left right, rest')
+    in (ESub left right, rest')
 
 led TMult left rest =
     let (right, rest') = pratt 20 rest
-    in (Mul left right, rest')
+    in (EMul left right, rest')
 
 led TDiv left rest =
     let (right, rest') = pratt 20 rest
-    in (Div left right, rest')
+    in (EDiv left right, rest')
 
 led TEq left rest =
     let (right, rest') = pratt 5 rest
-    in (Eq left right, rest')
+    in (EEq left right, rest')
 
 led TNeq left rest =
     let (right, rest') = pratt 5 rest
-    in (Neq left right, rest')
+    in (ENeq left right, rest')
 
 led TLte left rest =
     let (right, rest') = pratt 5 rest
-    in (Lte left right, rest')
+    in (ELte left right, rest')
 
 led TGte left rest =
     let (right, rest') = pratt 5 rest
-    in (Gte left right, rest')
+    in (EGte left right, rest')
 
 led t left rest = (left, t:rest)
 

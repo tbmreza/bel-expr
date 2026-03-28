@@ -40,14 +40,17 @@ main = defaultMain $ testGroup "Tests"
 
   -- [ testGroup "Examples" [ testRespBodyAccess
   --                        , testRespBodyAccessMissingEnv
+
   [ testGroup "Examples" [ testLiteralsEval
                          , testLiteralsRun
                          , testArithPratt
                          , testJsonpathPratt
                          , testJsonpathEval
                          , testJsonpathRun
+                         , testDebugPratt
                          ]
-  -- [ testGroup "single" [ testJsonpathRun ]
+
+  -- [ testGroup "single" [ testDebugRun ]
 
   ]
 
@@ -56,7 +59,7 @@ start = Env { bindings = HM.empty }
 testLiteralsEval :: TestTree
 testLiteralsEval = testCase "identity eval" $ do
     r0 <- eval start (VNum 0)
-    r1 <- eval start (ETrace (VNum 1572))
+    r1 <- eval start (VTrace (VNum 1572))
     case (r0, r1) of
         (VNum 0, VNum 1572) -> pure ()
         -- els -> assertFailure $ "got:\t" ++ show els
@@ -74,7 +77,7 @@ testArithPratt = testCase "arith pratt" $ do
         (VNum 421, []) -> pure ()
 
     case pratt 0 [TNum 11, TPlus, TNum 22] of
-        (Add (VNum 11.0) (VNum 22.0), []) -> pure ()
+        (EAdd (VNum 11.0) (VNum 22.0), []) -> pure ()
 
     -- 100 is arbitrarily larger number than TPlus' 10 bp
     case pratt 100 [TNum 11, TPlus, TNum 22] of
@@ -86,12 +89,12 @@ testArithPratt = testCase "arith pratt" $ do
 testJsonpathPratt :: TestTree
 testJsonpathPratt = testCase "jsonpath pratt" $ do
     case pratt 0 [TJsonpath, TQuoted "$.data.page", TEq, TNum 1] of
-        (Eq (EJsonpath (VString "$.data.page")) (VNum 1.0), []) -> pure ()
+        (EEq (EJsonpath (VString "$.data.page")) (VNum 1.0), []) -> pure ()
         els -> assertFailure $ "got:\t" ++ show els
 
 testJsonpathEval :: TestTree
 testJsonpathEval = testCase "jsonpath eval" $ do
-    r0 <- eval dummy (Eq (EJsonpath (VString "$.page")) (VNum 1.0))
+    r0 <- eval dummy (EEq (EJsonpath (VString "$.page")) (VNum 1.0))
     case r0 of
         (VBool True) -> pure ()
         els -> assertFailure $ "got:\t" ++ show els
@@ -101,6 +104,19 @@ testJsonpathRun = testCase "jsonpath run" $ do
     r0 <- run dummy "jsonpath \"$.page\""
     case r0 of
         (VNum 1.0) -> pure ()
+        els -> assertFailure $ "got:\t" ++ show els
+
+testDebugPratt :: TestTree
+testDebugPratt = testCase "debug pratt" $ do
+    case pratt 0 [TDebug, TNum 13] of
+        (EDebug (VNum 13.0), []) -> pure ()
+        els -> assertFailure $ "got:\t" ++ show els
+
+testDebugRun :: TestTree
+testDebugRun = testCase "debug run" $ do
+    r0 <- run dummy "debug 234"
+    case r0 of
+        -- (VBool True) -> pure ()
         els -> assertFailure $ "got:\t" ++ show els
 
 

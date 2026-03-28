@@ -43,7 +43,6 @@ import qualified Data.Text.Encoding as TE
 
 import Network.HTTP.Client          (Response (..), Request (..), defaultRequest,
                                       RequestBody (..)
-                                      -- , ResponseClose (..)
                                       , createCookieJar)
 import Network.HTTP.Client.Internal (ResponseClose (..), Response (..))
 import Network.HTTP.Types.Status    (mkStatus)
@@ -196,16 +195,13 @@ eval env = rec
     where
     rec :: Expr -> IO Expr
 
-    rec (ETrace arg) = do
+    -- Implement hhs debug as special case of VTrace ("trace" as in haskell
+    -- Debug.Trace tradition).
+    rec (VTrace arg) = do
         v <- rec arg
         print v
         pure v
 
-    -- `debug` is for use as special assertion line that always evaluates to
-    -- true.
-    rec (EDebug arg) = do
-        _ <- rec (ETrace arg)
-        pure (VBool True)
 
     rec e = pure (match env e)
 
@@ -219,29 +215,30 @@ match env = go
     go (VIdent t) =
         undefined
 
-    go (Neg e) =
+    go (ENeg e) =
         case go e of
             VBool b -> VBool (not b)
-            e' -> Neg e'
+            e' -> ENeg e'
 
-    go (Eq e1 e2) = VBool (go e1 == go e2)
-    go (Neq e1 e2) = go (Neg (Eq e1 e2))
+    go (EEq e1 e2) = VBool (go e1 == go e2)
+    go (ENeq e1 e2) = go (ENeg (EEq e1 e2))
 
-    go (Lte e1 e2) =
+    go (ELte e1 e2) =
         case (go e1, go e2) of
             (VNum n1, VNum n2) -> VBool (n1 <= n2)
             _ -> VBool False
 
-    go (Gte e1 e2) =
+    go (EGte e1 e2) =
         case (go e1, go e2) of
             (VNum n1, VNum n2) -> VBool (n1 >= n2)
             _ -> VBool False
 
     -- ??: generalize $ @ %  >debug "$.method"
-    -- go (App (Fn "debug") (VString q)) =  -- ?? jsonpath-ing json response bodies
-    -- go (App (Fn "debug") (VString "$")) =
-    -- go (EDebug (VString "$")) =
-    --     ETrace (showRespBody dummy)
+
+    go (EDebug e) =
+        VTrace (go e)
+    --     ??: case of in eval
+    --     VTrace (go e, VBool True)
 
     -- jsonpath-query accepting Expr variant
     -- Querying Expr
@@ -252,31 +249,28 @@ match env = go
     go (EJsonpath (VString q)) =
         queryEnvRespBody env q
 
-    go (Add e1 e2) =
+    go (EAdd e1 e2) =
         case (go e1, go e2) of
             (VNum v1, VNum v2) -> VNum (v1 + v2)
-            (r1, r2) -> Add r1 r2
+            (r1, r2) -> EAdd r1 r2
 
-    go (Mul e1 e2) =
+    go (EMul e1 e2) =
         case (go e1, go e2) of
             (VNum v1, VNum v2) -> VNum (v1 * v2)
-            (r1, r2) -> Mul r1 r2
+            (r1, r2) -> EMul r1 r2
 
-    go (Sub e1 e2) =
+    go (ESub e1 e2) =
         case (go e1, go e2) of
             (VNum v1, VNum v2) -> VNum (v1 - v2)
-            (r1, r2) -> Sub r1 r2
+            (r1, r2) -> ESub r1 r2
 
-    go (Div e1 e2) =
+    go (EDiv e1 e2) =
         case (go e1, go e2) of
             (VNum v1, VNum v2) -> VNum (v1 / v2)
-            (r1, r2) -> Div r1 r2
+            (r1, r2) -> EDiv r1 r2
 
-    -- ??: request <arg> probably handled earlier than when handed to BEL
-    -- go (App (Fn "request") (VString q)) =
-    --     Expr "POST"
-
--- Expect one matching Value.
+-- Expect one matching Value. Hoogle Data.Aeson.JSONPath to explore other
+-- interfaces.
 queryBody :: String -> Aeson.Value -> Maybe Aeson.Value
 queryBody q root = case Aeson.query q root of
     Left _ -> trace ("qbn1;q=" ++ show q ++ ";root=" ++ show root) Nothing
@@ -336,6 +330,7 @@ operatorP = choice
   , TDiv   <$ C.char '/'
   ]
 
+-- ??: auto review after TTrue
 tokenP :: Parser Token
 tokenP = choice
   [ try $ TNeq <$ C.string "!="
@@ -351,6 +346,7 @@ tokenP = choice
   , try $ TNum <$> number
   , try $ boolP
   , try $ TJsonpath <$ C.string "jsonpath"
+  , try $ TDebug <$ C.string "debug"
   , try $ TQuoted <$> (C.char '"' *> takeWhileP Nothing (/= '"') <* C.char '"')
   , try $ TIdentifier <$> identifier'
   ]
