@@ -199,10 +199,16 @@ eval env = rec
     -- Debug.Trace tradition).
     rec (VTrace arg) = do
         v <- rec arg
+        -- print "hasilprint"
         print v
         pure v
 
-    rec e = pure (match env e)
+    rec e = case match env e of
+        res@(VTrace _) -> rec res
+        res            -> do
+                print "nohasil"
+                print e
+                pure res
 
 match :: Env -> Expr -> Expr
 match env = go
@@ -267,6 +273,7 @@ match env = go
         case (go e1, go e2) of
             (VNum v1, VNum v2) -> VNum (v1 / v2)
             (r1, r2) -> EDiv r1 r2
+    go e = trace ("match::" ++ show e) e
 
 -- Expect one matching Value. Hoogle Data.Aeson.JSONPath to explore other
 -- interfaces.
