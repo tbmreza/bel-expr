@@ -202,7 +202,6 @@ eval env = rec
         print v
         pure v
 
-
     rec e = pure (match env e)
 
 match :: Env -> Expr -> Expr
@@ -310,8 +309,8 @@ data Arg =
 
 boolP :: Parser Token
 boolP = choice
-  [ (TBool False) <$ C.string "false"
-  , (TBool True)  <$ C.string "true"
+  [ TFalse <$ C.string "false"
+  , TTrue  <$ C.string "true"
   ]
 
 relP :: Parser Token

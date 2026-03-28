@@ -37,7 +37,6 @@ data Env = Env
 
 data Token =
     TUnit
-  | TBool Bool
   | TTrue | TFalse
   | TEq | TNeq | TLte | TGte
   | TJsonpath | TDebug
@@ -108,7 +107,8 @@ bp _ =       0
 nud :: Token -> [Token] -> (Expr, [Token])
 
 nud (TNum n) rest =    (VNum n, rest)
-nud (TBool b) rest =   (VBool b, rest)
+nud TTrue rest =       (VBool True, rest)
+nud TFalse rest =      (VBool False, rest)
 nud (TQuoted s) rest = (VString s, rest)
 
 -- Expr will evaluate to true with printing side-effect. Typically used in
