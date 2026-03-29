@@ -191,24 +191,24 @@ dummy = Env
 
 
 eval :: Env -> Expr -> IO Expr
-eval env = rec
+eval env = go
     where
-    rec :: Expr -> IO Expr
+    go :: Expr -> IO Expr
 
     -- Implement hhs debug as special case of VTrace ("trace" as in haskell
     -- Debug.Trace tradition).
-    rec (VTrace arg opt) = do
-        v <- rec arg
-        print v
+    go (VTrace arg opt) = do
+        evaluatedArg <- go arg
+        print evaluatedArg
         case opt of
-            Nothing -> pure v
+            Nothing     -> pure evaluatedArg
             Just custom -> pure custom
 
-    rec e = case match env e of
-        res@(VTrace _ _) -> rec res
-        res            -> do
-                print e
-                pure res
+    go expr = case match env expr of
+        traceExpr@(VTrace _ _) -> go traceExpr
+        evaluatedExpr          -> do
+            print expr
+            pure evaluatedExpr
 
 match :: Env -> Expr -> Expr
 match env = go

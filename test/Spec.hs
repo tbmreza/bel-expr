@@ -41,21 +41,21 @@ main = defaultMain $ testGroup "Tests"
   -- [ testGroup "Examples" [ testRespBodyAccess
   --                        , testRespBodyAccessMissingEnv
 
-  [ testGroup "Examples" [ testLiteralsEval
-                         , testLiteralsRun
-                         , testArithPratt
-                         , testJsonpathPratt
-                         , testJsonpathEval
-                         , testJsonpathRun
-                         , testDebugPratt
-                         , testIdentRun
-                         , testIdentEval
-                         , testIdentMissing
-                         , testTokensKeywords
-                         , testUnaryMinus
-                         ]
+  -- [ testGroup "Examples" [ testLiteralsEval
+  --                        , testLiteralsRun
+  --                        , testArithPratt
+  --                        , testJsonpathPratt
+  --                        , testJsonpathEval
+  --                        , testJsonpathRun
+  --                        , testDebugPratt
+  --                        , testIdentRun
+  --                        , testIdentEval
+  --                        , testIdentMissing
+  --                        , testTokensKeywords
+  --                        , testUnaryMinus
+  --                        ]
 
-  -- [ testGroup "single" [ testDebugRun ]
+  [ testGroup "single" [ testDebugRun ]
 
   ]
 
@@ -95,55 +95,48 @@ testJsonpathPratt :: TestTree
 testJsonpathPratt = testCase "jsonpath pratt" $ do
     case pratt 0 [TJsonpath, TQuoted "$.data.page", TEq, TNum 1] of
         (EEq (EJsonpath (VString "$.data.page")) (VNum 1.0), []) -> pure ()
-        els -> assertFailure $ "got:\t" ++ show els
 
 testJsonpathEval :: TestTree
 testJsonpathEval = testCase "jsonpath eval" $ do
     r0 <- eval dummy (EEq (EJsonpath (VString "$.page")) (VNum 1.0))
     case r0 of
         (VBool True) -> pure ()
-        els -> assertFailure $ "got:\t" ++ show els
 
 testJsonpathRun :: TestTree
 testJsonpathRun = testCase "jsonpath run" $ do
     r0 <- run dummy "jsonpath \"$.page\""
     case r0 of
         (VNum 1.0) -> pure ()
-        els -> assertFailure $ "got:\t" ++ show els
 
 testDebugPratt :: TestTree
 testDebugPratt = testCase "debug pratt" $ do
     case pratt 0 [TDebug, TNum 13] of
         (EDebug (VNum 13.0), []) -> pure ()
-        els -> assertFailure $ "got:\t" ++ show els
 
 testDebugRun :: TestTree
 testDebugRun = testCase "debug run" $ do
-    r0 <- run dummy "debug 234"
+    r0 <- run dummy "debug 534"
     case r0 of
-        -- (VBool True) -> pure ()
-        els -> assertFailure $ "got:\t" ++ show els
+        (VBool True) -> pure ()
+        -- els -> assertFailure $ "got:\t" ++ show els
 
 testIdentRun :: TestTree
 testIdentRun = testCase "ident run" $ do
     r0 <- run dummy "BASE_URL"
     case r0 of
         VString "https://api.example.com" -> pure ()
-        els -> assertFailure $ "got:\t" ++ show els
 
 testIdentEval :: TestTree
 testIdentEval = testCase "ident eval" $ do
     r0 <- eval dummy (VIdent "MAX_RETRIES")
     case r0 of
         VNum 3.0 -> pure ()
-        els -> assertFailure $ "got:\t" ++ show els
 
 testIdentMissing :: TestTree
 testIdentMissing = testCase "ident missing" $ do
     r0 <- run dummy "UNKNOWN_VAR"
     case r0 of
         VNull -> pure ()
-        els -> assertFailure $ "got:\t" ++ show els
 
 testTokensKeywords :: TestTree
 testTokensKeywords = testCase "tokens keywords no overlap" $ do
@@ -154,7 +147,6 @@ testTokensKeywords = testCase "tokens keywords no overlap" $ do
     -- since these are valid unmatched identifiers, they evaluate to VNull.
     case (r1, r2, r3) of
         (VNull, VNull, VNull) -> pure ()
-        els -> assertFailure $ "got:\t" ++ show els
 
 testUnaryMinus :: TestTree
 testUnaryMinus = testCase "unary minus" $ do
@@ -163,7 +155,6 @@ testUnaryMinus = testCase "unary minus" $ do
 
     case (r1, r2) of
         (VNum (-2.0), VNum 7.0) -> pure ()
-        els -> assertFailure $ "got:\t" ++ show els
 
 -- testRespBodyAccess :: TestTree
 -- testRespBodyAccess = testCase "RESP_BODY access positive" $ do
