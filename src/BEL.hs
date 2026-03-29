@@ -218,7 +218,9 @@ match env = go
     go final@(VNum _) = final
 
     go (VIdent t) =
-        undefined
+        case HM.lookup (Text.unpack t) (bindings env) of
+            Just val -> aesonToExpr val
+            Nothing -> VNull
 
     go (ENeg e) =
         case go e of
@@ -336,7 +338,6 @@ operatorP = choice
   , TDiv   <$ C.char '/'
   ]
 
--- ??: auto review after TTrue
 tokenP :: Parser Token
 tokenP = choice
   [ try $ TNeq <$ C.string "!="

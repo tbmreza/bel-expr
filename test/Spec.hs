@@ -48,6 +48,9 @@ main = defaultMain $ testGroup "Tests"
                          , testJsonpathEval
                          , testJsonpathRun
                          , testDebugPratt
+                         , testIdentRun
+                         , testIdentEval
+                         , testIdentMissing
                          ]
 
   -- [ testGroup "single" [ testDebugRun ]
@@ -119,6 +122,26 @@ testDebugRun = testCase "debug run" $ do
         -- (VBool True) -> pure ()
         els -> assertFailure $ "got:\t" ++ show els
 
+testIdentRun :: TestTree
+testIdentRun = testCase "ident run" $ do
+    r0 <- run dummy "BASE_URL"
+    case r0 of
+        VString "https://api.example.com" -> pure ()
+        els -> assertFailure $ "got:\t" ++ show els
+
+testIdentEval :: TestTree
+testIdentEval = testCase "ident eval" $ do
+    r0 <- eval dummy (VIdent "MAX_RETRIES")
+    case r0 of
+        VNum 3.0 -> pure ()
+        els -> assertFailure $ "got:\t" ++ show els
+
+testIdentMissing :: TestTree
+testIdentMissing = testCase "ident missing" $ do
+    r0 <- run dummy "UNKNOWN_VAR"
+    case r0 of
+        VNull -> pure ()
+        els -> assertFailure $ "got:\t" ++ show els
 
 -- testRespBodyAccess :: TestTree
 -- testRespBodyAccess = testCase "RESP_BODY access positive" $ do
