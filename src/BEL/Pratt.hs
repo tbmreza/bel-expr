@@ -111,6 +111,10 @@ nud TTrue rest =       (VBool True, rest)
 nud TFalse rest =      (VBool False, rest)
 nud (TQuoted s) rest = (VString s, rest)
 
+nud TMinus rest =
+    let (e, rest') = pratt 100 rest
+    in (ENeg e, rest')
+
 -- Expr will evaluate to true with printing side-effect. Typically used in
 -- [Asserts] block though valid everywhere else in hhs.
 nud TDebug rest =

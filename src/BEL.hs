@@ -35,6 +35,7 @@ import           Text.Megaparsec ( Parsec, (<|>), some
                                  , takeWhileP
                                  , choice
                                  , eof
+                                 , notFollowedBy
                                  )
 
 import qualified Data.ByteString.Lazy as LBS
@@ -59,8 +60,7 @@ sc :: Parser ()
 sc = L.space C.space1 empty empty
 
 number :: Parser Scientific
-number = do
-    L.signed sc L.scientific
+number = L.scientific
 
 type Parser = Parsec Void Text
 
@@ -225,6 +225,7 @@ match env = go
     go (ENeg e) =
         case go e of
             VBool b -> VBool (not b)
+            VNum n  -> VNum (-n)
             e' -> ENeg e'
 
     go (EEq e1 e2) = VBool (go e1 == go e2)
@@ -316,10 +317,13 @@ data Arg =
   deriving (Show, Eq)
 
 
+keyword :: Text -> Parser ()
+keyword w = C.string w *> notFollowedBy (C.alphaNumChar <|> C.char '_' <|> C.char '.')
+
 boolP :: Parser Token
 boolP = choice
-  [ TFalse <$ C.string "false"
-  , TTrue  <$ C.string "true"
+  [ TFalse <$ keyword "false"
+  , TTrue  <$ keyword "true"
   ]
 
 relP :: Parser Token
@@ -340,22 +344,16 @@ operatorP = choice
 
 tokenP :: Parser Token
 tokenP = choice
-  [ try $ TNeq <$ C.string "!="
-  , try $ TEq  <$ C.string "=="
-  , try $ TLte <$ C.string "<="
-  , try $ TGte <$ C.string ">="
-  , try $ TPlus  <$ C.char '+'
-  , try $ TMinus <$ C.char '-'
-  , try $ TMult  <$ C.char '*'
-  , try $ TDiv   <$ C.char '/'
-  , try $ TParenOpn <$ C.char '('
-  , try $ TParenCls <$ C.char ')'
-  , try $ TNum <$> number
-  , try $ boolP
-  , try $ TJsonpath <$ C.string "jsonpath"
-  , try $ TDebug <$ C.string "debug"
-  , try $ TQuoted <$> (C.char '"' *> takeWhileP Nothing (/= '"') <* C.char '"')
-  , try $ TIdentifier <$> identifier'
+  [ try relP
+  , operatorP
+  , TParenOpn <$ C.char '('
+  , TParenCls <$ C.char ')'
+  , TNum <$> number
+  , try boolP
+  , try $ TJsonpath <$ keyword "jsonpath"
+  , try $ TDebug <$ keyword "debug"
+  , TQuoted <$> (C.char '"' *> takeWhileP Nothing (/= '"') <* C.char '"')
+  , TIdentifier <$> identifier'
   ]
 
 identifier' :: Parser Text

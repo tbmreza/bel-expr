@@ -51,6 +51,8 @@ main = defaultMain $ testGroup "Tests"
                          , testIdentRun
                          , testIdentEval
                          , testIdentMissing
+                         , testTokensKeywords
+                         , testUnaryMinus
                          ]
 
   -- [ testGroup "single" [ testDebugRun ]
@@ -141,6 +143,26 @@ testIdentMissing = testCase "ident missing" $ do
     r0 <- run dummy "UNKNOWN_VAR"
     case r0 of
         VNull -> pure ()
+        els -> assertFailure $ "got:\t" ++ show els
+
+testTokensKeywords :: TestTree
+testTokensKeywords = testCase "tokens keywords no overlap" $ do
+    r1 <- run dummy "debug_var"
+    r2 <- run dummy "falsehood"
+    r3 <- run dummy "jsonpath_1"
+    
+    -- since these are valid unmatched identifiers, they evaluate to VNull.
+    case (r1, r2, r3) of
+        (VNull, VNull, VNull) -> pure ()
+        els -> assertFailure $ "got:\t" ++ show els
+
+testUnaryMinus :: TestTree
+testUnaryMinus = testCase "unary minus" $ do
+    r1 <- run dummy "-2"
+    r2 <- run dummy "5 - -2"
+
+    case (r1, r2) of
+        (VNum (-2.0), VNum 7.0) -> pure ()
         els -> assertFailure $ "got:\t" ++ show els
 
 -- testRespBodyAccess :: TestTree
