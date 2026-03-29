@@ -197,16 +197,16 @@ eval env = rec
 
     -- Implement hhs debug as special case of VTrace ("trace" as in haskell
     -- Debug.Trace tradition).
-    rec (VTrace arg) = do
+    rec (VTrace arg opt) = do
         v <- rec arg
-        -- print "hasilprint"
         print v
-        pure v
+        case opt of
+            Nothing -> pure v
+            Just custom -> pure custom
 
     rec e = case match env e of
-        res@(VTrace _) -> rec res
+        res@(VTrace _ _) -> rec res
         res            -> do
-                print "nohasil"
                 print e
                 pure res
 
@@ -244,9 +244,7 @@ match env = go
     -- ??: generalize $ @ %  >debug "$.method"
 
     go (EDebug e) =
-        VTrace (go e)
-    --     ??: case of in eval
-    --     VTrace (go e, VBool True)
+        VTrace (go e) (Just $ VBool True)
 
     -- jsonpath-query accepting Expr variant
     -- Querying Expr

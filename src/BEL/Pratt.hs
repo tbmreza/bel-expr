@@ -48,8 +48,8 @@ data Token =
     deriving (Show, Eq)
 
 data Expr where
-    -- App :: Expr -> Expr -> Expr
-    VTrace    :: Expr -> Expr
+    -- VTrace  :: Expr -> Expr
+    VTrace  :: Expr -> Maybe Expr -> Expr
     VBool   :: !Bool         -> Expr
     VObj    :: !Aeson.Object -> Expr
     VArray  :: !Aeson.Array  -> Expr

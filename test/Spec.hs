@@ -64,7 +64,7 @@ start = Env { bindings = HM.empty }
 testLiteralsEval :: TestTree
 testLiteralsEval = testCase "identity eval" $ do
     r0 <- eval start (VNum 0)
-    r1 <- eval start (VTrace (VNum 1572))
+    r1 <- eval start (VTrace (VNum 1572) Nothing)
     case (r0, r1) of
         (VNum 0, VNum 1572) -> pure ()
         -- els -> assertFailure $ "got:\t" ++ show els
