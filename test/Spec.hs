@@ -41,21 +41,22 @@ main = defaultMain $ testGroup "Tests"
   -- [ testGroup "Examples" [ testRespBodyAccess
   --                        , testRespBodyAccessMissingEnv
 
-  -- [ testGroup "Examples" [ testLiteralsEval
-  --                        , testLiteralsRun
-  --                        , testArithPratt
-  --                        , testJsonpathPratt
-  --                        , testJsonpathEval
-  --                        , testJsonpathRun
-  --                        , testDebugPratt
-  --                        , testIdentRun
-  --                        , testIdentEval
-  --                        , testIdentMissing
-  --                        , testTokensKeywords
-  --                        , testUnaryMinus
-  --                        ]
+  [ testGroup "Examples" [ testLiteralsEval
+                         , testLiteralsRun
+                         , testArithPratt
+                         , testJsonpathPratt
+                         , testJsonpathEval
+                         , testJsonpathRun
+                         , testDebugPratt
+                         , testDebugRun
+                         , testIdentRun
+                         , testIdentEval
+                         , testIdentMissing
+                         , testTokensKeywords
+                         , testUnaryMinus
+                         ]
 
-  [ testGroup "single" [ testDebugRun ]
+  -- [ testGroup "single" [ testDebugRun ]
 
   ]
 
@@ -118,7 +119,6 @@ testDebugRun = testCase "debug run" $ do
     r0 <- run dummy "debug 534"
     case r0 of
         (VBool True) -> pure ()
-        -- els -> assertFailure $ "got:\t" ++ show els
 
 testIdentRun :: TestTree
 testIdentRun = testCase "ident run" $ do

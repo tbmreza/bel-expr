@@ -199,7 +199,6 @@ eval env = go
     -- Debug.Trace tradition).
     go (VTrace arg opt) = do
         evaluatedArg <- go arg
-        print evaluatedArg
         case opt of
             Nothing     -> pure evaluatedArg
             Just custom -> pure custom
