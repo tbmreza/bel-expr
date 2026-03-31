@@ -81,17 +81,12 @@ mapEval :: Env -> [Text] -> IO [Expr]
 mapEval env lines = do
     mapM (h env) lines
     where
-    h :: Env -> Text -> IO Expr
     h env input = do
         case runParser (exprP <* eof) "" input of
             Left _ -> pure $ VString input
             Right tokens -> do
                 let (expr, _rest) = pratt 0 tokens
-                -- matched <- eval env expr
-
-                -- case matched of
-                case match env expr of
-                    res -> pure res
+                eval env expr
 
 runExprP input = runParser (exprP <* eof) "" input
 
@@ -240,7 +235,10 @@ match env = go
             (VNum n1, VNum n2) -> VBool (n1 >= n2)
             _ -> VBool False
 
-    -- ??: generalize $ @ %  >debug "$.method"
+    -- PICKUP generalize $ @ %  >debug "$.method"
+-- use  jsonpath "$." for response body as it's the norm
+-- then jsonpath "%." can be used for all other response fields
+-- requests are statically checked, so it make sense in this block that request is treated "natively"
 
     go (EDebug e) =
         VTrace (go e) (Just $ VBool True)
@@ -423,7 +421,6 @@ render env (Aeson.String acc) ((L t):rest) = do
                 let (expr, _rest) = pratt 0 tokens
                 pure expr
 
-    -- evaled :: Expr <- eval env t
     let evaled = match env xp
 
     -- render necessitates for effective final values to be string.
@@ -439,7 +436,6 @@ render env (Aeson.String acc) ((L t):rest) = do
     render env av rest
 
 render _ _ _ = pure $ Aeson.String ""
--- render _ _ _ = undefined  -- debugging
 
 
 identifier :: Parser Text

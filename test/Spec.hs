@@ -30,16 +30,11 @@ main = defaultMain $ testGroup "Tests"
   --                          , testQueryEnvRespBody
   --                          ]
 
-  -- [ testGroup "Properties" [ testProperty "render identity simple" prop_render_identity_simple
-  --                          , testProperty "render doesn't crash" prop_render_doesnt_crash
-  --                          , testProperty "queryEnvRespBody missing" prop_queryEnvRespBody_missing
+  -- [ testGroup "Properties" [ testProperty "queryEnvRespBody missing" prop_queryEnvRespBody_missing
   --                          , testProperty "queryEnvRespBody root" prop_queryEnvRespBody_root
   --                          , testProperty "queryEnvRespBody nested" prop_queryEnvRespBody_nested
   --                          -- , testProperty "eval doesn't crash" prop_eval_doesnt_crash
   --                          ]
-
-  -- [ testGroup "Examples" [ testRespBodyAccess
-  --                        , testRespBodyAccessMissingEnv
 
   [ testGroup "Examples" [ testLiteralsEval
                          , testLiteralsRun
@@ -54,6 +49,8 @@ main = defaultMain $ testGroup "Tests"
                          , testIdentMissing
                          , testTokensKeywords
                          , testUnaryMinus
+                         , e2eMapEval
+                         , e2eRender
                          ]
 
   -- [ testGroup "single" [ testDebugRun ]
@@ -156,24 +153,13 @@ testUnaryMinus = testCase "unary minus" $ do
     case (r1, r2) of
         (VNum (-2.0), VNum 7.0) -> pure ()
 
--- testRespBodyAccess :: TestTree
--- testRespBodyAccess = testCase "RESP_BODY access positive" $ do
---     let root :: Aeson.Value = [aesonQQ| { "data": "hello" } |]
---         env :: BEL.Env = HM.fromList [("RESP_BODY", root)]
---
---     res <- BEL.mapEval env ["jsonpath \"$.data\""]
---     case res of
---         [VString "hello"] -> pure ()
---         els -> assertFailure $ "Expected [VString \"hello\"], got: " ++ show els
---
--- testRespBodyAccessMissingEnv :: TestTree
--- testRespBodyAccessMissingEnv = testCase "RESP_BODY access missing env" $ do
---     let env :: BEL.Env = HM.empty
---
---     res <- BEL.mapEval env ["jsonpath \"$.data\""]
---     case res of
---         [VString ""] -> pure ()
---         els -> assertFailure $ "Expected [VString \"\"], got: " ++ show els
+e2eMapEval :: TestTree
+e2eMapEval = testCase "mapEval" $ do
+    res <- mapEval dummy ["1 + 2", "10 - 5", "invalid syntax!"]
+    case res of
+        [VNum 3.0, VNum 5.0, VString "invalid syntax!"] -> pure ()
+        _ -> assertFailure $ "mapEval got: " ++ show res
+
 
 -- prop_queryEnvRespBody_missing :: String -> Property
 -- prop_queryEnvRespBody_missing path =
@@ -200,24 +186,8 @@ testUnaryMinus = testCase "unary minus" $ do
 -- -- prop_eval_doesnt_crash input = ioProperty $ do
 -- --     _ <- BEL.eval HM.empty (Text.pack input)
 -- --     pure True
---
--- prop_render_doesnt_crash :: String -> Property
--- prop_render_doesnt_crash input = ioProperty $ do
---     let parts = BEL.partitions (Text.pack input)
---     val <- BEL.render HM.empty (Aeson.String "") parts
---     case val of
---         Aeson.String _ -> pure True
---         _ -> pure False
---
--- prop_render_identity_simple :: Property
--- prop_render_identity_simple = forAll (arbitrary `suchThat` isSimple) $ \input -> ioProperty $ do
---     let txt = Text.pack input
---     let parts = BEL.partitions txt
---     val <- BEL.render HM.empty (Aeson.String "") parts
---     pure $ val == Aeson.String txt
---   where
---     isSimple s = not $ any (\c -> c `elem` ("{}\\"::String)) s
---
+
+
 -- test0 :: TestTree
 -- test0 = testCase "part kinds" $ do
 --     case BEL.partitions "key: {{jsonpath \"$.data.token\"}}," of
@@ -229,18 +199,18 @@ testUnaryMinus = testCase "unary minus" $ do
 --     case BEL.partitions "been up for {{dur}} minutes." of
 --         [BEL.R "been up for ", BEL.L "dur", BEL.R " minutes."] -> pure ()
 --         all -> assertFailure $ show all
---
--- test2 :: TestTree
--- test2 = testCase "render template parts" $ do
---     let envNew :: BEL.Env = HM.fromList [("CAT", Aeson.String "animals")]
---
---     av1 <- BEL.render envNew (Aeson.String "") (BEL.partitions "{{10 * 2}}")
---     av2 <- BEL.render envNew (Aeson.String "") (BEL.partitions "score {{100}}")
---     av3 <- BEL.render envNew (Aeson.String "") (BEL.partitions "https://kernel.org/{{CAT}}/route.php?prefilt=9&lim={{10}}&filt=another")
---
---     case (av1, av2, av3) of
---         (Aeson.String "20", Aeson.String "score 100", Aeson.String "https://kernel.org/animals/route.php?prefilt=9&lim=10&filt=another") -> pure ()
---         all -> assertFailure $ show all
+
+e2eRender :: TestTree
+e2eRender = testCase "render template parts" $ do
+    let envNew = BEL.Env { bindings = HM.fromList [("CAT", Aeson.String "animals")] }
+
+    av1 <- BEL.render envNew (Aeson.String "") (BEL.partitions "{{10 * 2}}")
+    av2 <- BEL.render envNew (Aeson.String "") (BEL.partitions "score {{100}}")
+    av3 <- BEL.render envNew (Aeson.String "") (BEL.partitions "https://kernel.org/{{CAT}}/route.php?prefilt=9&lim={{10}}&filt=another")
+
+    case (av1, av2, av3) of
+        (Aeson.String "20", Aeson.String "score 100", Aeson.String "https://kernel.org/animals/route.php?prefilt=9&lim=10&filt=another") -> pure ()
+        all -> assertFailure $ show all
 
 -- test3 :: TestTree
 -- test3 = testCase "arith basic" $ do
