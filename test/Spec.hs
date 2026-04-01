@@ -27,7 +27,6 @@ main = defaultMain $ testGroup "Tests"
   --                          -- , test7
   --                          , test8 , test9 , test10 , test11 , test12
   --                          , test13 , test14 , test15 , testAmbiguity
-  --                          , testQueryEnvRespBody
   --                          ]
 
   -- [ testGroup "Properties" [ testProperty "queryEnvRespBody missing" prop_queryEnvRespBody_missing
@@ -42,6 +41,10 @@ main = defaultMain $ testGroup "Tests"
                          , testJsonpathPratt
                          , testJsonpathEval
                          , testJsonpathRun
+                         , testJsonpathArrayRun
+                         , testJsonpathNestedRun
+                         , testJsonpathMissingRun
+                         , testJsonpathCompareRun
                          , testDebugPratt
                          , testDebugRun
                          , testIdentRun
@@ -105,6 +108,36 @@ testJsonpathRun = testCase "jsonpath run" $ do
     r0 <- run dummy "jsonpath \"$.page\""
     case r0 of
         (VNum 1.0) -> pure ()
+
+testJsonpathArrayRun :: TestTree
+testJsonpathArrayRun = testCase "jsonpath array run" $ do
+    r0 <- run dummy "jsonpath \"$.roles[0]\""
+    r1 <- run dummy "jsonpath \"$.roles[1]\""
+    case (r0, r1) of
+        (VString "admin", VString "editor") -> pure ()
+        _ -> assertFailure $ "got " ++ show (r0, r1)
+
+testJsonpathNestedRun :: TestTree
+testJsonpathNestedRun = testCase "jsonpath nested run" $ do
+    r0 <- run dummy "jsonpath \"$.meta.theme\""
+    case r0 of
+        (VString "dark") -> pure ()
+        _ -> assertFailure $ "got " ++ show r0
+
+testJsonpathMissingRun :: TestTree
+testJsonpathMissingRun = testCase "jsonpath missing run" $ do
+    r0 <- run dummy "jsonpath \"$.missing\""
+    case r0 of
+        VNull -> pure ()
+        _ -> assertFailure $ "got " ++ show r0
+
+testJsonpathCompareRun :: TestTree
+testJsonpathCompareRun = testCase "jsonpath compare run" $ do
+    r0 <- run dummy "jsonpath \"$.userId\" == 42"
+    r1 <- run dummy "jsonpath \"$.name\" == \"Alice\""
+    case (r0, r1) of
+        (VBool True, VBool True) -> pure ()
+        _ -> assertFailure $ "got " ++ show (r0, r1)
 
 testDebugPratt :: TestTree
 testDebugPratt = testCase "debug pratt" $ do
@@ -383,34 +416,3 @@ e2eRender = testCase "render template parts" $ do
 --     case res1 of
 --         VString "foo" -> pure () 
 --         _ -> assertFailure $ "Expected VString \"foo\" (current behavior), got: " ++ show res1
---
--- -- (auto)
--- testQueryEnvRespBody :: TestTree
--- testQueryEnvRespBody = testCase "queryEnvRespBody function" $ do
---     let root :: Aeson.Value = [aesonQQ| { "status": "ok", "items": [1, 2, 3] } |]
---         env :: BEL.Env = HM.fromList [("RESP_BODY", root)]
---         envEmpty :: BEL.Env = HM.empty
---
---     -- Case 1: Existing path
---     let res1 = BEL.queryEnvRespBody env "$.status"
---     case res1 of
---         VString "ok" -> pure ()
---         _ -> assertFailure $ "Expected VString \"ok\", got: " ++ show res1
---
---     -- Case 2: Array access
---     let res2 = BEL.queryEnvRespBody env "$.items[0]"
---     case res2 of
---         VNum 1 -> pure ()
---         _ -> assertFailure $ "Expected VNum 1, got: " ++ show res2
---
---     -- Case 3: Missing path
---     let res3 = BEL.queryEnvRespBody env "$.missing"
---     case res3 of
---         VString "" -> pure ()
---         _ -> assertFailure $ "Expected VString \"\", got: " ++ show res3
---
---     -- Case 4: No RESP_BODY in env
---     let res4 = BEL.queryEnvRespBody envEmpty "$.status"
---     case res4 of
---         VString "" -> pure ()
---         _ -> assertFailure $ "Expected VString \"\", got: " ++ show res4

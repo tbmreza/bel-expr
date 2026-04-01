@@ -104,6 +104,8 @@ bp TDiv =   20
 bp _ =       0
 
 -- Null denotation "nud".
+-- # >header "Custom" not exists
+-- # header "Content-Type" exists
 nud :: Token -> [Token] -> (Expr, [Token])
 
 nud (TNum n) rest =    (VNum n, rest)
