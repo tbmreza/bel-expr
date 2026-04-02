@@ -1,9 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TypeApplications #-}
 
 import Debug.Trace
 
+import           Control.Exception (Exception(..), SomeException, evaluate, try)
 import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Test.Tasty.QuickCheck hiding (Fn)
@@ -72,12 +74,8 @@ start = Env { bindings = HM.empty }
 
 -- ??: fix testDivByZero to use assertException
 testDivByZero :: TestTree
-testDivByZero = testCase "division by zero" $ do
-    -- Scientific division by zero might throw or result in something else
-    r0 <- run dummy "1 / 0"
-    case r0 of
-        VNum _ -> assertFailure "Should probably not be a valid number"
-        _ -> pure ()
+testDivByZero = testCase "division by zero" $
+    assertException (run dummy "1 / 0") (\(_ :: SomeException) -> True)
 
 -- ??: make testArithMismatch pass
 testArithMismatch :: TestTree
@@ -314,6 +312,19 @@ e2eRender = testCase "render template parts" $ do
     case (av1, av2, av3) of
         (Aeson.String "20", Aeson.String "score 100", Aeson.String "https://kernel.org/animals/route.php?prefilt=9&lim=10&filt=another") -> pure ()
         all -> assertFailure $ show all
+
+
+--------------------------------------------------------------------------------
+-- More lib than app code
+--------------------------------------------------------------------------------
+assertException :: (Exception e, Show a) => IO a -> (e -> Bool) -> IO ()
+assertException action pred = do
+    result <- try @SomeException action
+    case result of
+        Left exc -> case fromException exc of
+            Just e -> if pred e then pure () else assertFailure $ "Exception predicate failed for: " ++ show exc
+            Nothing -> assertFailure $ "Wrong exception type: " ++ show exc
+        Right _ -> assertFailure "Expected exception but none was thrown"
 
 -- test3 :: TestTree
 -- test3 = testCase "arith basic" $ do
