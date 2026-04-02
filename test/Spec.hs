@@ -54,6 +54,14 @@ main = defaultMain $ testGroup "Tests"
                          , testUnaryMinus
                          , e2eMapEval
                          , e2eRender
+                         , testDivByZero
+                         , testArithMismatch
+                         , testMissingParen
+                         , testMalformedJsonpath
+                         , testJsonpathNonObject
+                         , testNegString
+                         , testIncompatibleEq
+                         , testEmptyInput
                          ]
 
   -- [ testGroup "single" [ testDebugRun ]
@@ -61,6 +69,68 @@ main = defaultMain $ testGroup "Tests"
   ]
 
 start = Env { bindings = HM.empty }
+
+-- ??: fix testDivByZero to use assertException
+testDivByZero :: TestTree
+testDivByZero = testCase "division by zero" $ do
+    -- Scientific division by zero might throw or result in something else
+    r0 <- run dummy "1 / 0"
+    case r0 of
+        VNum _ -> assertFailure "Should probably not be a valid number"
+        _ -> pure ()
+
+-- ??: make testArithMismatch pass
+testArithMismatch :: TestTree
+testArithMismatch = testCase "arithmetic mismatch" $ do
+    r0 <- run dummy "\"a\" + 1"
+    case r0 of
+        VNum _ -> assertFailure "Should not be a number"
+        EAdd _ _ -> assertFailure "Should be reduced or handle error"
+        _ -> pure ()
+
+testMissingParen :: TestTree
+testMissingParen = testCase "missing parenthesis" $ do
+    r0 <- run dummy "(1 + 2"
+    case r0 of
+        VNum 3.0 -> pure ()
+        _ -> assertFailure $ "got " ++ show r0
+
+testMalformedJsonpath :: TestTree
+testMalformedJsonpath = testCase "malformed jsonpath" $ do
+    r0 <- run dummy "jsonpath \"$.[\""
+    case r0 of
+        VNull -> pure ()
+        _ -> assertFailure $ "got " ++ show r0
+
+testJsonpathNonObject :: TestTree
+testJsonpathNonObject = testCase "jsonpath on non-object" $ do
+    r0 <- run dummy "jsonpath \"$.page.foo\""
+    case r0 of
+        VNull -> pure ()
+        _ -> assertFailure $ "got " ++ show r0
+
+-- ??: make testArithMismatch pass
+testNegString :: TestTree
+testNegString = testCase "negate string" $ do
+    r0 <- run dummy "-\"hello\""
+    case r0 of
+        ENeg (VString "hello") -> assertFailure "Should probably be an error or VNull"
+        _ -> pure ()
+
+testIncompatibleEq :: TestTree
+testIncompatibleEq = testCase "incompatible equality" $ do
+    r0 <- run dummy "1 == \"1\""
+    case r0 of
+        VBool False -> pure ()
+        _ -> assertFailure $ "got " ++ show r0
+
+testEmptyInput :: TestTree
+testEmptyInput = testCase "empty input" $ do
+    r0 <- run dummy ""
+    case r0 of
+        VString "" -> pure ()
+        _ -> assertFailure $ "got " ++ show r0
+
 
 testLiteralsEval :: TestTree
 testLiteralsEval = testCase "identity eval" $ do
