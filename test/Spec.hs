@@ -72,12 +72,10 @@ main = defaultMain $ testGroup "Tests"
 
 start = Env { bindings = HM.empty }
 
--- ??: fix testDivByZero to use assertException
 testDivByZero :: TestTree
 testDivByZero = testCase "division by zero" $
     assertException (run dummy "1 / 0") (\(_ :: SomeException) -> True)
 
--- ??: make testArithMismatch pass
 testArithMismatch :: TestTree
 testArithMismatch = testCase "arithmetic mismatch" $ do
     r0 <- run dummy "\"a\" + 1"
@@ -107,7 +105,6 @@ testJsonpathNonObject = testCase "jsonpath on non-object" $ do
         VNull -> pure ()
         _ -> assertFailure $ "got " ++ show r0
 
--- ??: make testArithMismatch pass
 testNegString :: TestTree
 testNegString = testCase "negate string" $ do
     r0 <- run dummy "-\"hello\""

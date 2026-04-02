@@ -220,6 +220,7 @@ match env = go
         case go e of
             VBool b -> VBool (not b)
             VNum n  -> VNum (-n)
+            VString _ -> VNull
             e' -> ENeg e'
 
     go (EEq e1 e2) = VBool (go e1 == go e2)
