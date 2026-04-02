@@ -5,11 +5,6 @@
 {-# LANGUAGE StandaloneDeriving #-}
 
 module BEL.Pratt
-  -- ( Env
-  -- , Token(..)
-  -- , Expr(..)
-  -- , pratt
-  -- ) where
     where
 
 import qualified Data.HashMap.Strict as HM
@@ -45,6 +40,7 @@ data Token =
   | TParenOpn | TParenCls
   | TPlus | TMinus | TMult | TDiv
   | TNum Scientific
+  | THeader | TExists | TNot
     deriving (Show, Eq)
 
 data Expr where
@@ -105,7 +101,9 @@ bp _ =       0
 
 -- Null denotation "nud".
 -- # >header "Custom" not exists
+-- nud THeader  data   TNot  TExists
 -- # header "Content-Type" exists
+-- nud THeader  data    TExists
 nud :: Token -> [Token] -> (Expr, [Token])
 
 nud (TNum n) rest =    (VNum n, rest)
@@ -128,6 +126,9 @@ nud (TIdentifier t) rest = (VIdent t, rest)
 nud TJsonpath (TQuoted t : rest) =
     (EJsonpath (VString t), rest)
 
+nud THeader rest =
+    (VBool True, [])
+
 nud TParenOpn rest =
     let (e, rest') = pratt 0 rest
     in case rest' of
@@ -136,9 +137,6 @@ nud TParenOpn rest =
 
 nud t _ = (VString (Text.pack $ show [t]), [])
 
--- tried :: Text -> JsonpathStr Checked
--- tried t =
---     JsonpathStrOk (show t)
 
 -- Left denotation "led".
 led :: Token -> Expr -> [Token] -> (Expr, [Token])

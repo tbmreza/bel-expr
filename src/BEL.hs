@@ -82,7 +82,7 @@ mapEval env lines = do
     mapM (h env) lines
     where
     h env input = do
-        case runParser (exprP <* eof) "" input of
+        case runExprP input of
             Left _ -> pure $ VString input
             Right tokens -> do
                 let (expr, _rest) = pratt 0 tokens
@@ -214,7 +214,7 @@ match env = go
     go (VIdent t) =
         case HM.lookup (Text.unpack t) (bindings env) of
             Just val -> aesonToExpr val
-            Nothing -> VNull
+            Nothing -> trace "bnre" VNull
 
     go (ENeg e) =
         case go e of
@@ -236,7 +236,7 @@ match env = go
             (VNum n1, VNum n2) -> VBool (n1 >= n2)
             _ -> VBool False
 
-    -- PICKUP generalize $ @ %  >debug "$.method"
+    -- ??: generalize $ @ %  >debug "$.method"
 -- use  jsonpath "$." for response body as it's the norm
 -- then jsonpath "%." can be used for all other response fields
 -- requests are statically checked, so it make sense in this block that request is treated "natively"
@@ -256,7 +256,7 @@ match env = go
     go (EAdd e1 e2) =
         case (go e1, go e2) of
             (VNum v1, VNum v2) -> VNum (v1 + v2)
-            (r1, r2) -> EAdd r1 r2
+            _ -> VNull
 
     go (EMul e1 e2) =
         case (go e1, go e2) of

@@ -54,8 +54,6 @@ main = defaultMain $ testGroup "Tests"
                          , testIdentMissing
                          , testTokensKeywords
                          , testUnaryMinus
-                         , e2eMapEval
-                         , e2eRender
                          , testDivByZero
                          , testArithMismatch
                          , testMissingParen
@@ -64,9 +62,15 @@ main = defaultMain $ testGroup "Tests"
                          , testNegString
                          , testIncompatibleEq
                          , testEmptyInput
+
+                         -- hurl query expressions
+                         -- , queryHeadersNotExists
+
+                         , e2eMapEval
+                         , e2eRender
                          ]
 
-  -- [ testGroup "single" [ testDebugRun ]
+  -- [ testGroup "single" [ queryHeadersNotExists ]
 
   ]
 
@@ -250,6 +254,14 @@ testUnaryMinus = testCase "unary minus" $ do
 
     case (r1, r2) of
         (VNum (-2.0), VNum 7.0) -> pure ()
+
+queryHeadersNotExists :: TestTree
+queryHeadersNotExists = testCase "hqe >headers str not exists" $ do
+    res <- mapEval dummy ["headers \"json\" not exists"]
+    case res of
+        [VBool True] -> pure ()
+        els -> assertFailure $ "got:\t" ++ show els
+
 
 e2eMapEval :: TestTree
 e2eMapEval = testCase "mapEval" $ do
