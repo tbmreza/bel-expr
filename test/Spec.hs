@@ -64,7 +64,7 @@ main = defaultMain $ testGroup "Tests"
                          , testEmptyInput
 
                          -- hurl query expressions
-                         -- , queryHeadersNotExists
+                         , queryHeadersNotExists
 
                          , e2eMapEval
                          , e2eRender
@@ -257,7 +257,7 @@ testUnaryMinus = testCase "unary minus" $ do
 
 queryHeadersNotExists :: TestTree
 queryHeadersNotExists = testCase "hqe >headers str not exists" $ do
-    res <- mapEval dummy ["headers \"json\" not exists"]
+    res <- mapEval dummy ["headers \"Cache-Control\" not exists"]
     case res of
         [VBool True] -> pure ()
         els -> assertFailure $ "got:\t" ++ show els

@@ -40,11 +40,10 @@ data Token =
   | TParenOpn | TParenCls
   | TPlus | TMinus | TMult | TDiv
   | TNum Scientific
-  | THeader | TExists | TNot
+  | THeaders | TExists | TNot
     deriving (Show, Eq)
 
 data Expr where
-    -- VTrace  :: Expr -> Expr
     VTrace  :: Expr -> Maybe Expr -> Expr
     VBool   :: !Bool         -> Expr
     VObj    :: !Aeson.Object -> Expr
@@ -67,6 +66,11 @@ data Expr where
 
     EDebug    :: Expr -> Expr
     EJsonpath :: Expr -> Expr
+
+    ---------------------------------------------------------------------------
+    -- Keywords trickled from query language employed by hurl (xpath-inspired).
+    ---------------------------------------------------------------------------
+    EHeadersNotExists :: Expr -> Expr  -- arg is Expr reducible to headers key
 
   -- >debug data
   -- >debug "$"
@@ -101,9 +105,9 @@ bp _ =       0
 
 -- Null denotation "nud".
 -- # >header "Custom" not exists
--- nud THeader  data   TNot  TExists
+-- nud THeaders  data   TNot  TExists
 -- # header "Content-Type" exists
--- nud THeader  data    TExists
+-- nud THeaders  data    TExists
 nud :: Token -> [Token] -> (Expr, [Token])
 
 nud (TNum n) rest =    (VNum n, rest)
@@ -126,8 +130,9 @@ nud (TIdentifier t) rest = (VIdent t, rest)
 nud TJsonpath (TQuoted t : rest) =
     (EJsonpath (VString t), rest)
 
-nud THeader rest =
-    (VBool True, [])
+-- Expr will evaluate to a bool after consulting to Env.
+nud THeaders [TQuoted t, TNot, TExists] =
+    (EHeadersNotExists (VString t), [])
 
 nud TParenOpn rest =
     let (e, rest') = pratt 0 rest
@@ -135,7 +140,8 @@ nud TParenOpn rest =
         (TParenCls:rest'') -> (e, rest'')
         _ -> (e, rest')
 
-nud t _ = (VString (Text.pack $ show [t]), [])
+-- ??: when panicking is desired
+nud t rest = (VString (Text.pack $ (show [t] ++ show [rest])), [])
 
 
 -- Left denotation "led".

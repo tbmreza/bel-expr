@@ -120,6 +120,10 @@ queryEnvRespBody env q =
         Just av -> aesonToExpr av
         _ -> VNull
 
+queryEnvRespHeaders :: Env -> Text -> Expr
+queryEnvRespHeaders env q =
+    VBool True
+
 showRespBody :: Env -> Expr
 showRespBody env =
     -- ??: not all responseBody is textual. also, "print N first characters" seems useful
@@ -214,7 +218,7 @@ match env = go
     go (VIdent t) =
         case HM.lookup (Text.unpack t) (bindings env) of
             Just val -> aesonToExpr val
-            Nothing -> trace "bnre" VNull
+            Nothing -> VNull
 
     go (ENeg e) =
         case go e of
@@ -252,6 +256,9 @@ match env = go
     -- go (App (Fn "jsonpath") (VString q)) =
     go (EJsonpath (VString q)) =
         queryEnvRespBody env q
+
+    go (EHeadersNotExists (VString q)) =
+        queryEnvRespHeaders env q
 
     go (EAdd e1 e2) =
         case (go e1, go e2) of
@@ -347,7 +354,10 @@ tokenP = choice
   , TNum <$> number
   , try boolP
   , try $ TJsonpath <$ keyword "jsonpath"
-  , try $ TDebug <$ keyword "debug"
+  , try $ TDebug    <$ keyword "debug"
+  , try $ THeaders  <$ keyword "headers"
+  , try $ TNot      <$ keyword "not"
+  , try $ TExists   <$ keyword "exists"
   , TQuoted <$> (C.char '"' *> takeWhileP Nothing (/= '"') <* C.char '"')
   , TIdentifier <$> identifier'
   ]
@@ -438,17 +448,6 @@ render env (Aeson.String acc) ((L t):rest) = do
 
 render _ _ _ = pure $ Aeson.String ""
 
-
-identifier :: Parser Text
-identifier = do
-    xs <- some $ C.alphaNumChar <|> C.char '_'
-    pure (Text.pack xs)
-
-
-word :: Parser [Token]
-word = do
-    xs <- some $ C.alphaNumChar <|> C.char '_' <|> C.char '.' <|> C.char '(' <|> C.char ')'
-    pure [TIdentifier (Text.pack xs)]
 
 --------------------------------------------------------------------------------
 -- More lib than app code
