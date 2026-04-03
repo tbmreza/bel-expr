@@ -71,6 +71,7 @@ data Expr where
     -- Keywords trickled from query language employed by hurl (xpath-inspired).
     ---------------------------------------------------------------------------
     EHeadersNotExists :: Expr -> Expr  -- arg is Expr reducible to headers key
+    EHeadersExists :: Expr -> Expr  -- arg is Expr reducible to headers key
 
   -- >debug data
   -- >debug "$"
@@ -133,6 +134,9 @@ nud TJsonpath (TQuoted t : rest) =
 -- Expr will evaluate to a bool after consulting to Env.
 nud THeaders [TQuoted t, TNot, TExists] =
     (EHeadersNotExists (VString t), [])
+
+nud THeaders [TQuoted t, TExists] =
+    (EHeadersExists (VString t), [])
 
 nud TParenOpn rest =
     let (e, rest') = pratt 0 rest

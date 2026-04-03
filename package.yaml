@@ -37,6 +37,7 @@ dependencies:
 - lens
 - http-client
 - http-types
+- case-insensitive
 
 ghc-options:
 - -Wall

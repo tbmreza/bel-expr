@@ -48,6 +48,8 @@ import Network.HTTP.Client          (Response (..), Request (..), defaultRequest
 import Network.HTTP.Client.Internal (ResponseClose (..), Response (..))
 import Network.HTTP.Types.Status    (mkStatus)
 import Network.HTTP.Types.Version   (http11)
+import Network.HTTP.Types.Header    (HeaderName(..))
+import Data.CaseInsensitive         (CI, original, mk)
 
 
 import qualified BEL.BatteriesMain as BEL
@@ -122,7 +124,10 @@ queryEnvRespBody env q =
 
 queryEnvRespHeaders :: Env -> Text -> Expr
 queryEnvRespHeaders env q =
-    VBool True
+    let headers = responseHeaders (responseCopy env) in
+    VBool $ case lookup (mk (TE.encodeUtf8 q)) headers of
+         Just _  -> True
+         Nothing -> False
 
 showRespBody :: Env -> Expr
 showRespBody env =
@@ -258,6 +263,9 @@ match env = go
         queryEnvRespBody env q
 
     go (EHeadersNotExists (VString q)) =
+        go (ENeg (queryEnvRespHeaders env q))
+
+    go (EHeadersExists (VString q)) =
         queryEnvRespHeaders env q
 
     go (EAdd e1 e2) =

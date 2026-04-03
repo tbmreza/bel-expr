@@ -38,6 +38,7 @@ library
     , aeson-jsonpath >=0.3.0.2 && <0.4.0.0
     , base >=4.7 && <5
     , bytestring
+    , case-insensitive
     , hashable
     , http-client
     , http-types
@@ -66,6 +67,7 @@ executable bel-expr-exe
     , base >=4.7 && <5
     , bel-expr
     , bytestring
+    , case-insensitive
     , hashable
     , http-client
     , http-types
@@ -96,6 +98,7 @@ test-suite bel-expr-test
     , base >=4.7 && <5
     , bel-expr
     , bytestring
+    , case-insensitive
     , hashable
     , http-client
     , http-types
