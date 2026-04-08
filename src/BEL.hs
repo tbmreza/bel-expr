@@ -262,10 +262,10 @@ match env = go
     go (EJsonpath (VString q)) =
         queryEnvRespBody env q
 
-    go (EHeadersNotExists (VString q)) =
+    go (EHeaderNotExists (VString q)) =
         go (ENeg (queryEnvRespHeaders env q))
 
-    go (EHeadersExists (VString q)) =
+    go (EHeaderExists (VString q)) =
         queryEnvRespHeaders env q
 
     go (EAdd e1 e2) =
@@ -363,7 +363,7 @@ tokenP = choice
   , try boolP
   , try $ TJsonpath <$ keyword "jsonpath"
   , try $ TDebug    <$ keyword "debug"
-  , try $ THeaders  <$ keyword "headers"
+  , try $ THeader  <$ keyword "header"
   , try $ TNot      <$ keyword "not"
   , try $ TExists   <$ keyword "exists"
   , TQuoted <$> (C.char '"' *> takeWhileP Nothing (/= '"') <* C.char '"')

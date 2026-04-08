@@ -40,7 +40,7 @@ main = defaultMain $ testGroup "Tests"
       , testJsonpathNestedRun
       , testJsonpathMissingRun
       , testJsonpathCompareRun
-      , testHeadersNotExists
+      , testHeaderNotExists
       , testDebugPratt
       , testDebugRun
       ]
@@ -163,10 +163,10 @@ testTokensKeywords = testCase "tokens keywords no overlap" $ do
 -- Query Language
 --------------------------------------------------------------------------------
 
-testHeadersNotExists :: TestTree
-testHeadersNotExists = testCase "hqe >headers str not exists" $ do
-    res <- mapEval dummy [ "headers \"Cache-Control\" not exists"
-                         , "headers \"Cache-Control\" exists"]
+testHeaderNotExists :: TestTree
+testHeaderNotExists = testCase "hqe >header str not exists" $ do
+    res <- mapEval dummy [ "header \"Cache-Control\" not exists"
+                         , "header \"Cache-Control\" exists"]
     case res of
         [VBool False, VBool True] -> pure ()
         els -> assertFailure $ "got:\t" ++ show els

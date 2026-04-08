@@ -40,7 +40,7 @@ data Token =
   | TParenOpn | TParenCls
   | TPlus | TMinus | TMult | TDiv
   | TNum Scientific
-  | THeaders | TExists | TNot
+  | THeader | TExists | TNot
     deriving (Show, Eq)
 
 data Expr where
@@ -70,8 +70,8 @@ data Expr where
     ---------------------------------------------------------------------------
     -- Keywords trickled from query language employed by hurl (xpath-inspired).
     ---------------------------------------------------------------------------
-    EHeadersNotExists :: Expr -> Expr  -- arg is Expr reducible to headers key
-    EHeadersExists :: Expr -> Expr  -- arg is Expr reducible to headers key
+    EHeaderNotExists :: Expr -> Expr  -- arg is Expr reducible to headers key
+    EHeaderExists    :: Expr -> Expr
 
   -- >debug data
   -- >debug "$"
@@ -105,10 +105,6 @@ bp TDiv =   20
 bp _ =       0
 
 -- Null denotation "nud".
--- # >header "Custom" not exists
--- nud THeaders  data   TNot  TExists
--- # header "Content-Type" exists
--- nud THeaders  data    TExists
 nud :: Token -> [Token] -> (Expr, [Token])
 
 nud (TNum n) rest =    (VNum n, rest)
@@ -132,11 +128,11 @@ nud TJsonpath (TQuoted t : rest) =
     (EJsonpath (VString t), rest)
 
 -- Expr will evaluate to a bool after consulting to Env.
-nud THeaders [TQuoted t, TNot, TExists] =
-    (EHeadersNotExists (VString t), [])
+nud THeader [TQuoted t, TNot, TExists] =
+    (EHeaderNotExists (VString t), [])
 
-nud THeaders [TQuoted t, TExists] =
-    (EHeadersExists (VString t), [])
+nud THeader [TQuoted t, TExists] =
+    (EHeaderExists (VString t), [])
 
 nud TParenOpn rest =
     let (e, rest') = pratt 0 rest
@@ -144,7 +140,9 @@ nud TParenOpn rest =
         (TParenCls:rest'') -> (e, rest'')
         _ -> (e, rest')
 
--- ??: when panicking is desired
+-- ??: in interpreters and evaluators context, decision tree for when to panic,
+-- when to null. different levels are parser (with binding powers), ast
+-- matching, and user facing apis.
 nud t rest = (VString (Text.pack $ (show [t] ++ show [rest])), [])
 
 
