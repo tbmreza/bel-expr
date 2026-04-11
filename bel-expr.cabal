@@ -34,8 +34,7 @@ library
       src
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
   build-depends:
-      Clipboard
-    , X11
+      Hclip
     , aeson
     , aeson-jsonpath >=0.3.0.2 && <0.4.0.0
     , base >=4.7 && <5
@@ -64,8 +63,7 @@ executable bel-expr-exe
       app
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      Clipboard
-    , X11
+      Hclip
     , aeson
     , aeson-jsonpath >=0.3.0.2 && <0.4.0.0
     , base >=4.7 && <5
@@ -96,9 +94,8 @@ test-suite bel-expr-test
       test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      Clipboard
+      Hclip
     , QuickCheck
-    , X11
     , aeson
     , aeson-jsonpath >=0.3.0.2 && <0.4.0.0
     , base >=4.7 && <5

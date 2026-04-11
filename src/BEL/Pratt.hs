@@ -68,6 +68,7 @@ data Expr where
     EDiv :: Expr -> Expr -> Expr
 
     EDebug    :: Expr -> Expr
+    ECopy     :: Expr -> Expr
     EJsonpath :: Expr -> Expr
 
     ---------------------------------------------------------------------------
@@ -128,7 +129,7 @@ nud TDebug rest =
 nud TCopy rest =
     let (e, rest') = pratt 0 rest
     -- in (EDebug e, rest')
-    in (EDebug e, rest')
+    in (ECopy e, rest')
 
 nud (TIdentifier t) rest = (VIdent t, rest)
 

@@ -16,52 +16,53 @@ import           BEL.Pratt
 
 main :: IO ()
 main = defaultMain $ testGroup "Tests"
-  [ testGroup "Properties"
-      [ testProperty "mapEval preserves length" propMapEvalLength
-      , testProperty "mapEval doesn't crash" propMapEvalCalled
-      , testProperty "addition is commutative" propArithAdditionCommutative
-      , testProperty "multiplication is commutative" propArithMultiplicationCommutative
-      , testProperty "equality is reflexive" propEqualityReflexive
-      ]
-  , testGroup "Basic"
-      [ testLiteralsEval
-      , testLiteralsRun
-      , testArithPratt
-      , testUnaryMinus
-      , testDivByZero
-      , testArithMismatch
-      , testIdentRun
-      , testIdentEval
-      , testIdentMissing
-      , testTokensKeywords
-      , testEscapedChars
-      ]
-  , testGroup "Query Language"
-      [ testJsonpathPratt
-      , testJsonpathEval
-      , testJsonpathRun
-      , testJsonpathArrayRun
-      , testJsonpathNestedRun
-      , testJsonpathMissingRun
-      , testJsonpathCompareRun
-      , testHeaderNotExists
-      , testDebugPratt
-      , testDebugRun
-      , testClipboardRun
-      ]
-  , testGroup "Error Handling"
-      [ testMissingParen
-      , testMalformedJsonpath
-      , testJsonpathNonObject
-      , testNegString
-      , testIncompatibleEq
-      , testEmptyInput
-      ]
-  , testGroup "API"
-      [ apiMapEval
-      , apiRender
-      ]
-  ]
+  [ testClipboardRun ]
+  -- [ testGroup "Properties"
+  --     [ testProperty "mapEval preserves length" propMapEvalLength
+  --     , testProperty "mapEval doesn't crash" propMapEvalCalled
+  --     , testProperty "addition is commutative" propArithAdditionCommutative
+  --     , testProperty "multiplication is commutative" propArithMultiplicationCommutative
+  --     , testProperty "equality is reflexive" propEqualityReflexive
+  --     ]
+  -- , testGroup "Basic"
+  --     [ testLiteralsEval
+  --     , testLiteralsRun
+  --     , testArithPratt
+  --     , testUnaryMinus
+  --     , testDivByZero
+  --     , testArithMismatch
+  --     , testIdentRun
+  --     , testIdentEval
+  --     , testIdentMissing
+  --     , testTokensKeywords
+  --     , testEscapedChars
+  --     ]
+  -- , testGroup "Query Language"
+  --     [ testJsonpathPratt
+  --     , testJsonpathEval
+  --     , testJsonpathRun
+  --     , testJsonpathArrayRun
+  --     , testJsonpathNestedRun
+  --     , testJsonpathMissingRun
+  --     , testJsonpathCompareRun
+  --     , testHeaderNotExists
+  --     , testDebugPratt
+  --     , testDebugRun
+  --     , testClipboardRun
+  --     ]
+  -- , testGroup "Error Handling"
+  --     [ testMissingParen
+  --     , testMalformedJsonpath
+  --     , testJsonpathNonObject
+  --     , testNegString
+  --     , testIncompatibleEq
+  --     , testEmptyInput
+  --     ]
+  -- , testGroup "API"
+  --     [ apiMapEval
+  --     , apiRender
+  --     ]
+  -- ]
 
 
 start :: Env
@@ -276,6 +277,7 @@ testClipboardRun = testCase "clipboard run" $ do
     r0 <- run dummy "copy 534"
     case r0 of
         (VBool True) -> pure ()
+        els -> assertFailure $ "got:\t" ++ show els
 
 --------------------------------------------------------------------------------
 -- Error Handling

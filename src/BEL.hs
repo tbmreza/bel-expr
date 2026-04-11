@@ -51,8 +51,7 @@ import Network.HTTP.Types.Version   (http11)
 import Network.HTTP.Types.Header    (HeaderName(..))
 import Data.CaseInsensitive         (CI, original, mk)
 
-import System.Clipboard (setClipboardString)
-
+import           System.Hclip (setClipboard)
 import qualified BEL.BatteriesMain as BEL
 import           BEL.Pratt
 
@@ -202,14 +201,13 @@ eval env = go
 
     -- Implement hhs debug and copy (to clipboard) as special cases of VTrace
     -- ("trace" as in haskell Debug.Trace tradition).
-
     go (VTrace arg dest) = do
         evaluatedArg <- go arg
         case dest of
             TracePropagationDefault     -> pure evaluatedArg
             TracePropagationExpr custom -> pure custom
             TracePropagationClipboard -> do
-                _ <- setClipboardString "dari haskell..."  -- PICKUP
+                () <- setClipboard "evaluatedArg"  -- unimplemented
                 pure evaluatedArg
 
     go expr = case match env expr of
@@ -250,11 +248,8 @@ match env = go
             (VNum n1, VNum n2) -> VBool (n1 >= n2)
             _ -> VBool False
 
-    -- Implement hhs debug as special case of VTrace ("trace" as in haskell
-    -- Debug.Trace tradition).
-
-    -- go (ECopy e) =  -- PICKUP
-        -- VTrace (go e) (TracePropagationClipboard $ VBool True)
+    go (ECopy e) =
+        VTrace (go e) (TracePropagationClipboard)
 
     go (EDebug e) =
         VTrace (go e) (TracePropagationExpr $ VBool True)
