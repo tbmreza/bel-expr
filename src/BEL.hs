@@ -207,7 +207,8 @@ eval env = go
             TracePropagationDefault     -> pure evaluatedArg
             TracePropagationExpr custom -> pure custom
             TracePropagationClipboard -> do
-                () <- setClipboard "evaluatedArg"  -- unimplemented
+                let str = Text.unpack $ Text.concat [Text.pack $ show evaluatedArg]  -- ??:
+                setClipboard str
                 pure evaluatedArg
 
     go expr = case match env expr of
@@ -222,6 +223,13 @@ match env = go
     go :: Expr -> Expr
 
     go final@(VNum _) = final
+    go final@(VBool _) = final
+    go final@(VString _) = final
+    go final@(VObj _) = final
+    go final@(VArray _) = final
+    go final@VNull = final
+
+    go (VTrace arg dest) = VTrace (go arg) dest
 
     go (VIdent t) =
         case HM.lookup (Text.unpack t) (bindings env) of
