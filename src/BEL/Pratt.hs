@@ -8,17 +8,14 @@ module BEL.Pratt
     where
 
 import qualified Data.HashMap.Strict as HM
-import           Control.Lens
--- import           Control.Lens ((&), (?~))
-import           Control.Lens.At (at)
+-- import           Control.Lens
+-- import           Control.Lens.At (at)
 
--- import           Data.HashMap.Strict.Lens
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Aeson as Aeson
 import           Data.Scientific (Scientific)
 
--- import qualified Data.ByteString.Lazy as LBS
 import Data.ByteString.Lazy (ByteString)
 import Network.HTTP.Client (Response (..), Request (..))
 
@@ -34,7 +31,7 @@ data Token =
     TUnit
   | TTrue | TFalse
   | TEq | TNeq | TLte | TGte
-  | TJsonpath | TDebug
+  | TJsonpath | TDebug | TCopy
   | TIdentifier Text
   | TQuoted Text
   | TParenOpn | TParenCls
@@ -43,8 +40,14 @@ data Token =
   | THeader | TExists | TNot
     deriving (Show, Eq)
 
+data TracePropagation =
+    TracePropagationDefault
+  | TracePropagationExpr Expr
+  | TracePropagationClipboard
+    deriving (Show, Eq)
+
 data Expr where
-    VTrace  :: Expr -> Maybe Expr -> Expr
+    VTrace  :: Expr -> TracePropagation -> Expr
     VBool   :: !Bool         -> Expr
     VObj    :: !Aeson.Object -> Expr
     VArray  :: !Aeson.Array  -> Expr
@@ -120,6 +123,11 @@ nud TMinus rest =
 -- [Asserts] block though valid everywhere else in hhs.
 nud TDebug rest =
     let (e, rest') = pratt 0 rest
+    in (EDebug e, rest')
+
+nud TCopy rest =
+    let (e, rest') = pratt 0 rest
+    -- in (EDebug e, rest')
     in (EDebug e, rest')
 
 nud (TIdentifier t) rest = (VIdent t, rest)

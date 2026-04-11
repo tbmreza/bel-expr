@@ -38,6 +38,8 @@ dependencies:
 - http-client
 - http-types
 - case-insensitive
+- Clipboard  # requires X11
+- X11  # requires `apt-get install libxss-dev`
 
 ghc-options:
 - -Wall

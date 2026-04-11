@@ -51,6 +51,7 @@ import Network.HTTP.Types.Version   (http11)
 import Network.HTTP.Types.Header    (HeaderName(..))
 import Data.CaseInsensitive         (CI, original, mk)
 
+import System.Clipboard (setClipboardString)
 
 import qualified BEL.BatteriesMain as BEL
 import           BEL.Pratt
@@ -199,13 +200,17 @@ eval env = go
     where
     go :: Expr -> IO Expr
 
-    -- Implement hhs debug as special case of VTrace ("trace" as in haskell
-    -- Debug.Trace tradition).
-    go (VTrace arg opt) = do
+    -- Implement hhs debug and copy (to clipboard) as special cases of VTrace
+    -- ("trace" as in haskell Debug.Trace tradition).
+
+    go (VTrace arg dest) = do
         evaluatedArg <- go arg
-        case opt of
-            Nothing     -> pure evaluatedArg
-            Just custom -> pure custom
+        case dest of
+            TracePropagationDefault     -> pure evaluatedArg
+            TracePropagationExpr custom -> pure custom
+            TracePropagationClipboard -> do
+                _ <- setClipboardString "dari haskell..."  -- PICKUP
+                pure evaluatedArg
 
     go expr = case match env expr of
         traceExpr@(VTrace _ _) -> go traceExpr
@@ -245,20 +250,15 @@ match env = go
             (VNum n1, VNum n2) -> VBool (n1 >= n2)
             _ -> VBool False
 
-    -- ??: generalize $ @ %  >debug "$.method"
--- use  jsonpath "$." for response body as it's the norm
--- then jsonpath "%." can be used for all other response fields
--- requests are statically checked, so it make sense in this block that request is treated "natively"
+    -- Implement hhs debug as special case of VTrace ("trace" as in haskell
+    -- Debug.Trace tradition).
+
+    -- go (ECopy e) =  -- PICKUP
+        -- VTrace (go e) (TracePropagationClipboard $ VBool True)
 
     go (EDebug e) =
-        VTrace (go e) (Just $ VBool True)
+        VTrace (go e) (TracePropagationExpr $ VBool True)
 
-    -- jsonpath-query accepting Expr variant
-    -- Querying Expr
-    -- go (App (Fn "jsonpath") (VString "$.page")) =
-    -- go (App (Fn "jsonpath") (VString "$")) =
-    -- go (App (Fn "jsonpath") (VString "USER_META.theme")) =
-    -- go (App (Fn "jsonpath") (VString q)) =
     go (EJsonpath (VString q)) =
         queryEnvRespBody env q
 
@@ -363,12 +363,19 @@ tokenP = choice
   , try boolP
   , try $ TJsonpath <$ keyword "jsonpath"
   , try $ TDebug    <$ keyword "debug"
-  , try $ THeader  <$ keyword "header"
+  , try $ TCopy     <$ keyword "copy"
+  , try $ THeader   <$ keyword "header"
   , try $ TNot      <$ keyword "not"
   , try $ TExists   <$ keyword "exists"
-  , TQuoted <$> (C.char '"' *> takeWhileP Nothing (/= '"') <* C.char '"')
+  , TQuoted <$> stringP
   , TIdentifier <$> identifier'
   ]
+
+stringP :: Parser Text
+stringP = do
+    _ <- C.char '"'
+    s <- manyTill ( (C.char '\\' *> anySingle) <|> anySingle ) (C.char '"')
+    pure (Text.pack s)
 
 identifier' :: Parser Text
 identifier' = do

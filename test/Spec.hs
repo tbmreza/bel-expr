@@ -19,6 +19,9 @@ main = defaultMain $ testGroup "Tests"
   [ testGroup "Properties"
       [ testProperty "mapEval preserves length" propMapEvalLength
       , testProperty "mapEval doesn't crash" propMapEvalCalled
+      , testProperty "addition is commutative" propArithAdditionCommutative
+      , testProperty "multiplication is commutative" propArithMultiplicationCommutative
+      , testProperty "equality is reflexive" propEqualityReflexive
       ]
   , testGroup "Basic"
       [ testLiteralsEval
@@ -31,6 +34,7 @@ main = defaultMain $ testGroup "Tests"
       , testIdentEval
       , testIdentMissing
       , testTokensKeywords
+      , testEscapedChars
       ]
   , testGroup "Query Language"
       [ testJsonpathPratt
@@ -43,6 +47,7 @@ main = defaultMain $ testGroup "Tests"
       , testHeaderNotExists
       , testDebugPratt
       , testDebugRun
+      , testClipboardRun
       ]
   , testGroup "Error Handling"
       [ testMissingParen
@@ -83,6 +88,32 @@ propMapEvalCalled (NonEmpty inputs) = ioProperty $ do
         VNull      -> True
         _          -> True) results
 
+propArithAdditionCommutative :: Double -> Double -> Property
+propArithAdditionCommutative a b = ioProperty $ do
+    let sa = show a
+        sb = show b
+    r1 <- run dummy (Text.pack $ sa ++ " + " ++ sb)
+    r2 <- run dummy (Text.pack $ sb ++ " + " ++ sa)
+    case (r1, r2) of
+        (VNum v1, VNum v2) -> pure $ abs (v1 - v2) < 1e-7
+        _ -> pure $ r1 == r2
+
+propArithMultiplicationCommutative :: Double -> Double -> Property
+propArithMultiplicationCommutative a b = ioProperty $ do
+    let sa = show a
+        sb = show b
+    r1 <- run dummy (Text.pack $ sa ++ " * " ++ sb)
+    r2 <- run dummy (Text.pack $ sb ++ " * " ++ sa)
+    case (r1, r2) of
+        (VNum v1, VNum v2) -> pure $ abs (v1 - v2) < 1e-7
+        _ -> pure $ r1 == r2
+
+propEqualityReflexive :: Int -> Property
+propEqualityReflexive n = ioProperty $ do
+    let sn = show n
+    r <- run dummy (Text.pack $ sn ++ " == " ++ sn)
+    pure $ r == VBool True
+
 --------------------------------------------------------------------------------
 -- Basic
 --------------------------------------------------------------------------------
@@ -90,7 +121,8 @@ propMapEvalCalled (NonEmpty inputs) = ioProperty $ do
 testLiteralsEval :: TestTree
 testLiteralsEval = testCase "identity eval" $ do
     r0 <- eval start (VNum 0)
-    r1 <- eval start (VTrace (VNum 1572) Nothing)
+    -- r1 <- eval start (VTrace (VNum 1572) Nothing)
+    r1 <- eval start (VTrace (VNum 1572) TracePropagationDefault)
     case (r0, r1) of
         (VNum 0, VNum 1572) -> pure ()
 
@@ -159,6 +191,13 @@ testTokensKeywords = testCase "tokens keywords no overlap" $ do
     case (r1, r2, r3) of
         (VNull, VNull, VNull) -> pure ()
 
+testEscapedChars :: TestTree
+testEscapedChars = testCase "escaped double quote" $ do
+    r0 <- run dummy "\"a\\\"b\""
+    case r0 of
+        VString "a\"b" -> pure ()
+        _ -> assertFailure $ "got " ++ show r0
+
 --------------------------------------------------------------------------------
 -- Query Language
 --------------------------------------------------------------------------------
@@ -226,6 +265,12 @@ testDebugPratt = testCase "debug pratt" $ do
 testDebugRun :: TestTree
 testDebugRun = testCase "debug run" $ do
     r0 <- run dummy "debug 534"
+    case r0 of
+        (VBool True) -> pure ()
+
+testClipboardRun :: TestTree
+testClipboardRun = testCase "clipboard run" $ do
+    r0 <- run dummy "copy 534"
     case r0 of
         (VBool True) -> pure ()
 
@@ -310,3 +355,15 @@ assertException action check = do
             Just e -> if check e then pure () else assertFailure $ "Exception predicate failed for: " ++ show exc
             Nothing -> assertFailure $ "Wrong exception type: " ++ show exc
         Right _ -> assertFailure "Expected exception but none was thrown"
+
+    -- ??: generalize $ @ %  >debug "$.method"
+-- use  jsonpath "$." for response body as it's the norm
+-- then jsonpath "%." can be used for all other response fields
+-- requests are statically checked, so it make sense in this block that request is treated "natively"
+
+-- jsonpath-query accepting Expr variant
+-- Querying Expr
+-- go (App (Fn "jsonpath") (VString "$.page")) =
+-- go (App (Fn "jsonpath") (VString "$")) =
+-- go (App (Fn "jsonpath") (VString "USER_META.theme")) =
+-- go (App (Fn "jsonpath") (VString q)) =
