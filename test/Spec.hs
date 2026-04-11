@@ -82,10 +82,13 @@ propMapEvalCalled (NonEmpty inputs) = ioProperty $ do
     let textInputs = map (Text.pack . (\s -> if null s then "0" else s)) inputs
     results <- mapEval dummy textInputs
     pure $ not (null results) && all (\r -> case r of
-        VNum _     -> True
         VString _  -> True
         VBool _    -> True
+        VNum _     -> True
+        VObj _     -> True
+        VArray _   -> True
         VNull      -> True
+        -- _          -> False) results  -- ??: --quickcheck-replay="(SMGen 1103323920034858734 13159247489078423903,12)"
         _          -> True) results
 
 propArithAdditionCommutative :: Double -> Double -> Property
@@ -162,7 +165,7 @@ testArithMismatch = testCase "arithmetic mismatch" $ do
     case r0 of
         VNum _ -> assertFailure "Should not be a number"
         EAdd _ _ -> assertFailure "Should be reduced or handle error"
-        _ -> pure ()
+        _ -> pure ()  -- ??: under specified
 
 testIdentRun :: TestTree
 testIdentRun = testCase "ident run" $ do
@@ -282,6 +285,7 @@ testMissingParen :: TestTree
 testMissingParen = testCase "missing parenthesis" $ do
     r0 <- run dummy "(1 + 2"
     case r0 of
+        -- ??: explain how we're handling unclosed paren
         VNum 3.0 -> pure ()
         _ -> assertFailure $ "got " ++ show r0
 
@@ -304,7 +308,7 @@ testNegString = testCase "negate string" $ do
     r0 <- run dummy "-\"hello\""
     case r0 of
         ENeg (VString "hello") -> assertFailure "Should probably be an error or VNull"
-        _ -> pure ()
+        _ -> pure ()  -- ??: under specified
 
 testIncompatibleEq :: TestTree
 testIncompatibleEq = testCase "incompatible equality" $ do
