@@ -117,10 +117,12 @@ aesonToExpr Aeson.Null       = VNull
 queryEnvRespBody :: Env -> Text -> Expr
 queryEnvRespBody env q =
     let lbs :: LBS.ByteString = responseBody (responseCopy env) in
-    let Just root :: Maybe Aeson.Value = Aeson.decode lbs in
-    case queryBody (show' q) root of
-        Just av -> aesonToExpr av
-        _ -> VNull
+    case Aeson.decode lbs of
+        Nothing -> VNull
+        Just root ->
+            case queryBody (show' q) root of
+                Just av -> aesonToExpr av
+                _ -> VNull
 
 queryEnvRespHeaders :: Env -> Text -> Expr
 queryEnvRespHeaders env q =

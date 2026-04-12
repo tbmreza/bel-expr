@@ -71,10 +71,10 @@ main = defaultMain $ testGroup "Tests"
       ]
   , testGroup "queryEnvRespBody Assumptions"
       [ testQueryEnvInvalidJson
-      -- , testQueryEnvEmptyBody
-      -- , testQueryEnvNonUtf8
-      -- , testQueryEnvEmptyResults  -- ok
-      -- , testQueryEnvHtmlResponse
+      , testQueryEnvEmptyBody
+      , testQueryEnvNonUtf8
+      , testQueryEnvEmptyResults
+      , testQueryEnvHtmlResponse
       ]
   ]
 
