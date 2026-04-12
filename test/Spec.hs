@@ -10,6 +10,13 @@ import           Test.Tasty.QuickCheck hiding (Fn)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Aeson.Types as Aeson (Value(..))
 import qualified Data.Text as Text
+import qualified Data.ByteString.Lazy as LBS
+
+import Network.HTTP.Client (Response(..), Request(..), defaultRequest,
+                            createCookieJar)
+import Network.HTTP.Client.Internal (Response(..))
+import Network.HTTP.Types.Status (mkStatus)
+import Network.HTTP.Types.Version (http11)
 
 import           BEL
 import           BEL.Pratt
@@ -61,6 +68,13 @@ main = defaultMain $ testGroup "Tests"
   , testGroup "API"
       [ apiMapEval
       , apiRender
+      ]
+  , testGroup "queryEnvRespBody Assumptions"
+      [ testQueryEnvInvalidJson
+      -- , testQueryEnvEmptyBody
+      -- , testQueryEnvNonUtf8
+      -- , testQueryEnvEmptyResults  -- ok
+      -- , testQueryEnvHtmlResponse
       ]
   ]
 
@@ -349,10 +363,6 @@ apiRender = testCase "render template parts" $ do
         (Aeson.String "20", Aeson.String "score 100", Aeson.String "https://kernel.org/animals/route.php?prefilt=9&lim=10&filt=another") -> pure ()
         all -> assertFailure $ show all
 
---------------------------------------------------------------------------------
--- More lib than app code
---------------------------------------------------------------------------------
-
 assertException :: Exception e => IO a -> (e -> Bool) -> IO ()
 assertException action check = do
     result <- try @SomeException action
@@ -362,7 +372,64 @@ assertException action check = do
             Nothing -> assertFailure $ "Wrong exception type: " ++ show exc
         Right _ -> assertFailure "Expected exception but none was thrown"
 
-    -- ??: generalize $ @ %  >debug "$.method"
+--------------------------------------------------------------------------------
+-- queryEnvRespBody
+--------------------------------------------------------------------------------
+
+makeEnvWithBody :: LBS.ByteString -> Env
+makeEnvWithBody body = Env
+  { responseCopy = Response
+      { responseStatus     = mkStatus 200 "OK"
+      , responseVersion    = http11
+      , responseHeaders    = [("Content-Type", "application/json")]
+      , responseBody       = body
+      , responseCookieJar  = createCookieJar []
+      }
+  , requestCopy = defaultRequest
+  , bindings    = HM.empty
+  }
+
+testQueryEnvInvalidJson :: TestTree
+testQueryEnvInvalidJson = testCase "queryEnvRespBody fails on invalid JSON" $ do
+    let env = makeEnvWithBody "not valid json at all"
+    let result = queryEnvRespBody env "$.foo"
+    case result of
+        VNull -> pure ()  -- assumes invalid JSON returns VNull
+        _ -> assertFailure $ "Expected VNull for invalid JSON, got: " ++ show result
+
+testQueryEnvEmptyBody :: TestTree
+testQueryEnvEmptyBody = testCase "queryEnvRespBody fails on empty body" $ do
+    let env = makeEnvWithBody ""
+    let result = queryEnvRespBody env "$.foo"
+    case result of
+        VNull -> pure ()  -- assumes empty body returns VNull
+        _ -> assertFailure $ "Expected VNull for empty body, got: " ++ show result
+
+testQueryEnvNonUtf8 :: TestTree
+testQueryEnvNonUtf8 = testCase "queryEnvRespBody fails on non-UTF8 body" $ do
+    let env = makeEnvWithBody "\255\254"  -- invalid UTF-8 bytes
+    let result = queryEnvRespBody env "$.foo"
+    case result of
+        VNull -> pure ()  -- assumes non-UTF8 returns VNull
+        _ -> assertFailure $ "Expected VNull for non-UTF8, got: " ++ show result
+
+testQueryEnvEmptyResults :: TestTree
+testQueryEnvEmptyResults = testCase "queryEnvRespBody fails on empty JSONPath results" $ do
+    let env = makeEnvWithBody "{\"foo\":\"bar\"}"
+    let result = queryEnvRespBody env "$.nonexistent"
+    case result of
+        VNull -> pure ()  -- assumes empty results return VNull
+        _ -> assertFailure $ "Expected VNull for empty results, got: " ++ show result
+
+testQueryEnvHtmlResponse :: TestTree
+testQueryEnvHtmlResponse = testCase "queryEnvRespBody assumes JSON but gets HTML" $ do
+    let env = makeEnvWithBody "<html><body>Not JSON</body></html>"
+    let result = queryEnvRespBody env "$.foo"
+    case result of
+        VNull -> pure ()  -- assumes HTML treated as invalid JSON -> VNull
+        _ -> assertFailure $ "Expected VNull for HTML response, got: " ++ show result
+
+-- ??: generalize $ @ %  >debug "$.method"
 -- use  jsonpath "$." for response body as it's the norm
 -- then jsonpath "%." can be used for all other response fields
 -- requests are statically checked, so it make sense in this block that request is treated "natively"
