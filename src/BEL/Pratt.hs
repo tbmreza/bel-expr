@@ -19,12 +19,10 @@ import           Data.Scientific (Scientific)
 import Data.ByteString.Lazy (ByteString)
 import Network.HTTP.Client (Response (..), Request (..))
 
--- type Env = HM.HashMap String Aeson.Value
-
 data Env = Env
   { responseCopy :: Response ByteString
   , requestCopy ::  Request
-  , bindings ::     HM.HashMap String Aeson.Value
+  , bindings ::     HM.HashMap Text Aeson.Value
   }
 
 data Token =

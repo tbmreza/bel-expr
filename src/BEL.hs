@@ -234,7 +234,7 @@ match env = go
     go (VTrace arg dest) = VTrace (go arg) dest
 
     go (VIdent t) =
-        case HM.lookup (Text.unpack t) (bindings env) of
+        case HM.lookup t (bindings env) of
             Just val -> aesonToExpr val
             Nothing -> VNull
 
