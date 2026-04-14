@@ -294,9 +294,10 @@ testDebugRun = testCase "debug run" $ do
 
 testClipboardRun :: TestTree
 testClipboardRun = testCase "clipboard run" $ do
-    r0 <- run dummy "copy 534"
-    case r0 of
-        (VNum 534.0) -> pure ()
+    r0 <- run dummy "534 copy"
+    r1 <- run dummy "(100 + 10) copy"
+    case (r0, r1) of
+        (VNum 534.0, VNum 110.0) -> pure ()
         els -> assertFailure $ "got:\t" ++ show els
 
 --------------------------------------------------------------------------------

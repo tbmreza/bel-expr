@@ -104,7 +104,8 @@ bp TPlus =  10
 bp TMinus = 10
 bp TMult =  20
 bp TDiv =   20
-bp _ =       0
+bp TCopy =  1
+bp _ =      0
 
 -- Null denotation "nud".
 nud :: Token -> [Token] -> (Expr, [Token])
@@ -123,11 +124,6 @@ nud TMinus rest =
 nud TDebug rest =
     let (e, rest') = pratt 0 rest
     in (EDebug e, rest')
-
-nud TCopy rest =
-    let (e, rest') = pratt 0 rest
-    -- in (EDebug e, rest')
-    in (ECopy e, rest')
 
 nud (TIdentifier t) rest = (VIdent t, rest)
 
@@ -187,6 +183,8 @@ led TLte left rest =
 led TGte left rest =
     let (right, rest') = pratt 5 rest
     in (EGte left right, rest')
+
+led TCopy left rest = (ECopy left, rest)
 
 led t left rest = (left, t:rest)
 
