@@ -3,6 +3,7 @@
 {-# LANGUAGE TypeApplications #-}
 
 import           Control.Exception (Exception(..), SomeException, try)
+import           Control.Monad (when)
 import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Test.Tasty.QuickCheck hiding (Fn)
@@ -68,6 +69,11 @@ main = defaultMain $ testGroup "Tests"
   , testGroup "API"
       [ apiMapEval
       , apiRender
+      , renderNonStringAccumulator
+      , renderEmptyLPart
+      , renderBoolInLPart
+      , renderNullInLPart
+      , renderArrayInLPart
       ]
   , testGroup "queryEnvRespBody Assumptions"
       [ testQueryEnvInvalidJson
@@ -362,6 +368,74 @@ apiRender = testCase "render template parts" $ do
     case (av1, av2, av3) of
         (Aeson.String "20", Aeson.String "score 100", Aeson.String "https://kernel.org/animals/route.php?prefilt=9&lim=10&filt=another") -> pure ()
         all -> assertFailure $ show all
+
+renderNonStringAccumulator :: TestTree
+renderNonStringAccumulator = testCase "render preserves non-string accumulator" $ do
+    let envNew = BEL.Env { bindings = HM.empty }
+    av <- BEL.render envNew (Aeson.Number 42) (BEL.partitions "fixed")
+    case av of
+        Aeson.Number 42 -> pure ()
+        Aeson.String "fixed" -> pure ()
+        _ -> assertFailure $ "accumulator lost: " ++ show av
+
+renderEmptyLPart :: TestTree
+renderEmptyLPart = testCase "render handles empty L part {{}}" $ do
+    let envNew = BEL.Env { bindings = HM.empty }
+    av <- BEL.render envNew (Aeson.String "prefix-") (BEL.partitions "prefix-{{}}-suffix")
+    case av of
+        Aeson.String s -> do
+            let containsDash = Text.isInfixOf "-" s
+            let containsSuffix = Text.isInfixOf "suffix" s
+            if containsDash && containsSuffix
+                then pure ()
+                else assertFailure $ "missing content: " ++ show s
+        _ -> assertFailure $ "empty L lost: " ++ show av
+
+renderBoolInLPart :: TestTree
+renderBoolInLPart = testCase "render handles bool in L part" $ do
+    let envNew = BEL.Env { bindings = HM.fromList [("FLAG", Aeson.Bool True)] }
+    av <- BEL.render envNew (Aeson.String "enabled: ") (BEL.partitions "enabled: {{FLAG}}")
+    case av of
+        Aeson.String s -> do
+            let containsTrue = Text.isInfixOf "True" s
+            let containsTrueLower = Text.isInfixOf "true" s
+            let isUnhandled = s == "unhandled render L"
+            if isUnhandled
+                then assertFailure "bool incorrectly falling through to unhandled"
+                else if containsTrue || containsTrueLower
+                    then pure ()
+                    else assertFailure $ "bool not rendered: " ++ show s
+        _ -> assertFailure "should return string"
+
+renderNullInLPart :: TestTree
+renderNullInLPart = testCase "render handles null in L part" $ do
+    let envNew = BEL.Env { bindings = HM.fromList [("MAYBE", Aeson.Null)] }
+    av <- BEL.render envNew (Aeson.String "value: ") (BEL.partitions "value: {{MAYBE}}")
+    case av of
+        Aeson.String s -> do
+            let isUnhandled = s == "unhandled render L"
+            let containsNull = Text.isInfixOf "null" s
+            if isUnhandled
+                then assertFailure "null incorrectly falling through to unhandled"
+                else if containsNull
+                    then pure ()
+                    else assertFailure $ "null not rendered: " ++ show s
+        _ -> assertFailure "should return string"
+
+renderArrayInLPart :: TestTree
+renderArrayInLPart = testCase "render handles array in L part" $ do
+    let envNew = BEL.Env { bindings = HM.fromList [("ITEMS", Aeson.Array mempty)] }
+    av <- BEL.render envNew (Aeson.String "list: ") (BEL.partitions "list: {{ITEMS}}")
+    case av of
+        Aeson.String s -> do
+            let isUnhandled = s == "unhandled render L"
+            let containsEmptyArray = Text.isInfixOf "[]" s
+            if isUnhandled
+                then assertFailure "array incorrectly falling through to unhandled"
+                else if containsEmptyArray
+                    then pure ()
+                    else assertFailure $ "array not rendered: " ++ show s
+        _ -> assertFailure "should return string"
 
 assertException :: Exception e => IO a -> (e -> Bool) -> IO ()
 assertException action check = do

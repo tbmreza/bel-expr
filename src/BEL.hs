@@ -440,33 +440,64 @@ partitions input =
 render :: Env -> Aeson.Value -> [Part] -> IO Aeson.Value
 render env = go
     where
-    go accStr [] =
-        pure accStr
+    go acc [] =
+        pure acc
 
     go (Aeson.String acc) ((R t):rest) =
         let grow :: Text = Text.concat [acc, t] in
         go (Aeson.String grow) rest
 
-    go (Aeson.String acc) ((L t):rest) = do
-        xp :: Expr <- case runExprP t of
-                Left _ -> pure $ VString t
-                Right tokens -> do
-                    let (expr, _rest) = pratt 0 tokens
-                    pure expr
+    go (Aeson.String acc) ((L t):rest) =
+        let xp = parseExprT t
+            evaled = match env xp
+            str = renderValue evaled
+            av = Aeson.String $ Text.concat [acc, Text.pack str]
+        in go av rest
 
-        let evaled = match env xp
+    go acc ((R t):rest) =
+        case acc of
+            Aeson.String txt -> go (Aeson.String $ Text.concat [txt, t]) rest
+            _ -> go acc rest
 
-        -- render necessitates for effective final values to be string.
-        let str = case finalValue evaled of
-                Aeson.String txt -> show' txt
-                Aeson.Object obj -> show obj
-                Aeson.Number n -> case floatingOrInteger n of
-                                      Right (i :: Integer) -> show i
-                                      Left (_ :: Double)   -> show n
-                _ -> ("unhandled render L" :: String)
+    go acc ((L t):rest) =
+        let xp = parseExprT t
+            evaled = match env xp
+            str = renderValue evaled
+            newAcc = case acc of
+                Aeson.String txt -> txt
+                _ -> Text.pack (renderValueAsString acc)
+            grow = Text.concat [newAcc, Text.pack str]
+        in go (Aeson.String grow) rest
 
-        let av = Aeson.String $ Text.concat [acc, Text.pack str]
-        go av rest
+    parseExprT t = case runExprP t of
+        Left _ -> VString t
+        Right tokens -> let (expr, _rest) = pratt 0 tokens in expr
+
+renderValue :: Expr -> String
+renderValue e = case finalValue e of
+    Aeson.String txt -> show' txt
+    Aeson.Number n -> case floatingOrInteger n of
+                          Right (i :: Integer) -> show i
+                          Left (_ :: Double)   -> show n
+    Aeson.Object obj -> show obj
+    Aeson.Array arr -> show arr
+    Aeson.Null -> "null"
+    Aeson.Bool b -> map toLower $ show b
+  where
+    toLower c = if c >= 'A' && c <= 'Z' then toEnum (fromEnum c - fromEnum 'A' + fromEnum 'a') else c
+
+renderValueAsString :: Aeson.Value -> String
+renderValueAsString v = case v of
+    Aeson.String txt -> show' txt
+    Aeson.Number n -> case floatingOrInteger n of
+                          Right (i :: Integer) -> show i
+                          Left (_ :: Double)   -> show n
+    Aeson.Object obj -> show obj
+    Aeson.Array arr -> show arr
+    Aeson.Null -> "null"
+    Aeson.Bool b -> map toLower $ show b
+  where
+    toLower c = if c >= 'A' && c <= 'Z' then toEnum (fromEnum c - fromEnum 'A' + fromEnum 'a') else c
 
 --------------------------------------------------------------------------------
 -- More lib than app code
