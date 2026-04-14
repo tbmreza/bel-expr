@@ -438,36 +438,35 @@ partitions input =
 -- Argument either needs evaluation (Left) or already just "Right". Doesn't
 -- bubble exceptions further up; render failure echoes the input.
 render :: Env -> Aeson.Value -> [Part] -> IO Aeson.Value
-render _env accStr [] =
-    pure accStr
+render env = go
+    where
+    go accStr [] =
+        pure accStr
 
-render env (Aeson.String acc) ((R t):rest) =
-    let grow :: Text = Text.concat [acc, t] in
-    render env (Aeson.String grow) rest
+    go (Aeson.String acc) ((R t):rest) =
+        let grow :: Text = Text.concat [acc, t] in
+        go (Aeson.String grow) rest
 
-render env (Aeson.String acc) ((L t):rest) = do
-    xp :: Expr <- case runExprP t of
-            Left _ -> pure $ VString t
-            Right tokens -> do
-                let (expr, _rest) = pratt 0 tokens
-                pure expr
+    go (Aeson.String acc) ((L t):rest) = do
+        xp :: Expr <- case runExprP t of
+                Left _ -> pure $ VString t
+                Right tokens -> do
+                    let (expr, _rest) = pratt 0 tokens
+                    pure expr
 
-    let evaled = match env xp
+        let evaled = match env xp
 
-    -- render necessitates for effective final values to be string.
-    let str = case finalValue evaled of
-            Aeson.String txt -> show' txt
-            Aeson.Object obj -> show obj
-            Aeson.Number n -> case floatingOrInteger n of
-                                  Right (i :: Integer) -> show i
-                                  Left (_ :: Double)   -> show n
-            _ -> ("unhandled render L" :: String)
+        -- render necessitates for effective final values to be string.
+        let str = case finalValue evaled of
+                Aeson.String txt -> show' txt
+                Aeson.Object obj -> show obj
+                Aeson.Number n -> case floatingOrInteger n of
+                                      Right (i :: Integer) -> show i
+                                      Left (_ :: Double)   -> show n
+                _ -> ("unhandled render L" :: String)
 
-    let av = Aeson.String $ Text.concat [acc, Text.pack str]
-    render env av rest
-
-render _ _ _ = pure $ Aeson.String ""
-
+        let av = Aeson.String $ Text.concat [acc, Text.pack str]
+        go av rest
 
 --------------------------------------------------------------------------------
 -- More lib than app code
