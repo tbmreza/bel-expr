@@ -117,7 +117,8 @@ aesonToExpr Aeson.Null       = VNull
 queryEnvRespBody :: Env -> Text -> Expr
 queryEnvRespBody env q =
     let lbs :: LBS.ByteString = responseBody (responseCopy env) in
-    case Aeson.decode lbs of
+    -- case Aeson.decode lbs of
+    trace ("working with response=" ++ show (responseCopy env)) $ case Aeson.decode lbs of
         Nothing -> VNull
         Just root ->
             case queryBody (show' q) root of
@@ -158,6 +159,7 @@ dummy = Env
           , path   = "/v1/users/42"
           , method = "GET"
           }
+      , responseEarlyHints = []
       }
 
   , requestCopy = defaultRequest

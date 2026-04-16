@@ -24,7 +24,7 @@ import           BEL.Pratt
 
 main :: IO ()
 main = defaultMain $ testGroup "Tests"
-  -- [ testClipboardRun ]
+  -- [ testHeaderNotExists ]
   [ testGroup "Properties"
       [ testProperty "mapEval preserves length" propMapEvalLength
       , testProperty "mapEval doesn't crash" propMapEvalCalled
