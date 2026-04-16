@@ -143,9 +143,6 @@ nud TParenOpn rest =
         (TParenCls:rest'') -> (e, rest'')
         _ -> (e, rest')
 
--- ??: in interpreters and evaluators context, decision tree for when to panic,
--- when to null. different levels are parser (with binding powers), ast
--- matching, and user facing apis.
 nud t rest = (VString (Text.pack $ (show [t] ++ show [rest])), [])
 
 

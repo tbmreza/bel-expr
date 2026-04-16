@@ -127,13 +127,13 @@ queryEnvRespBody env q =
 queryEnvRespHeaders :: Env -> Text -> Expr
 queryEnvRespHeaders env q =
     let headers = responseHeaders (responseCopy env) in
-    VBool $ case lookup (mk (TE.encodeUtf8 q)) headers of
+    -- VBool $ case lookup (mk (TE.encodeUtf8 q)) headers of
+    trace ("working with response=" ++ show (responseCopy env)) $ VBool $ case lookup (mk (TE.encodeUtf8 q)) headers of
          Just _  -> True
          Nothing -> False
 
 showRespBody :: Env -> Expr
 showRespBody env =
-    -- ??: not all responseBody is textual. also, "print N first characters" seems useful
     let lbs = responseBody (responseCopy env) in
     VString (TE.decodeUtf8 (LBS.toStrict lbs))
 
@@ -151,13 +151,13 @@ dummy = Env
       , responseBody       = "{\"page\":1,\"userId\":42,\"name\":\"Alice\",\"roles\":[\"admin\",\"editor\"],\"meta\":{\"theme\":\"dark\"}}"
       , responseCookieJar  = createCookieJar []
       -- , responseClose'     = ResponseClose (pure ())
-      -- , responseOriginalRequest = defaultRequest
-      --     { host   = "api.example.com"
-      --     , port   = 443
-      --     , secure = True
-      --     , path   = "/v1/users/42"
-      --     , method = "GET"
-      --     }
+      , responseOriginalRequest = defaultRequest
+          { host   = "api.example.com"
+          , port   = 443
+          , secure = True
+          , path   = "/v1/users/42"
+          , method = "GET"
+          }
       }
 
   , requestCopy = defaultRequest

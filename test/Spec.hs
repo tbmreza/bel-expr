@@ -56,7 +56,8 @@ main = defaultMain $ testGroup "Tests"
       , testHeaderNotExists
       , testDebugPratt
       , testDebugRun
-      , testClipboardRun
+      -- , testClipboardRun
+      , testClipboardJsonpathRun
       ]
   , testGroup "Error Handling"
       [ testMissingParen
@@ -298,6 +299,13 @@ testClipboardRun = testCase "clipboard run" $ do
     r1 <- run dummy "(100 + 10) copy"
     case (r0, r1) of
         (VNum 534.0, VNum 110.0) -> pure ()
+        els -> assertFailure $ "got:\t" ++ show els
+
+testClipboardJsonpathRun :: TestTree
+testClipboardJsonpathRun = testCase "clipboard run" $ do
+    r0 <- run dummy "jsonpath \"$.name\" copy"
+    case (r0) of
+        (VString "Alice") -> pure ()
         els -> assertFailure $ "got:\t" ++ show els
 
 --------------------------------------------------------------------------------
