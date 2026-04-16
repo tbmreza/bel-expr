@@ -117,7 +117,6 @@ aesonToExpr Aeson.Null       = VNull
 queryEnvRespBody :: Env -> Text -> Expr
 queryEnvRespBody env q =
     let lbs :: LBS.ByteString = responseBody (responseCopy env) in
-    -- case Aeson.decode lbs of
     trace ("working with response=" ++ show (responseCopy env)) $ case Aeson.decode lbs of
         Nothing -> VNull
         Just root ->
@@ -128,7 +127,6 @@ queryEnvRespBody env q =
 queryEnvRespHeaders :: Env -> Text -> Expr
 queryEnvRespHeaders env q =
     let headers = responseHeaders (responseCopy env) in
-    -- VBool $ case lookup (mk (TE.encodeUtf8 q)) headers of
     trace ("working with response=" ++ show (responseCopy env)) $ VBool $ case lookup (mk (TE.encodeUtf8 q)) headers of
          Just _  -> True
          Nothing -> False

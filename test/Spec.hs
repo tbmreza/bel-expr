@@ -467,6 +467,8 @@ makeEnvWithBody body = Env
       , responseHeaders    = [("Content-Type", "application/json")]
       , responseBody       = body
       , responseCookieJar  = createCookieJar []
+      , responseOriginalRequest = defaultRequest
+      , responseEarlyHints = []
       }
   , requestCopy = defaultRequest
   , bindings    = HM.empty
