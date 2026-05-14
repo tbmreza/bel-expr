@@ -10,8 +10,11 @@ import           Test.Tasty.QuickCheck hiding (Fn)
 
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Aeson.Types as Aeson (Value(..))
+import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.ByteString as BS
+import qualified Data.Text.Encoding as TE
 
 import           Network.HTTP.Client (Response(..), Request(..), defaultRequest, createCookieJar)
 import           Network.HTTP.Client.Internal (Response(..))
@@ -21,8 +24,22 @@ import           Network.HTTP.Types.Version (http11)
 import           BEL
 import           BEL.Pratt
 
--- newtype RhsDict = RhsDict (HM.HashMap Text [BEL.Part])
--- renderRequestHeaders :: BEL.Env -> RhsDict -> IO [(HeaderName, BS.ByteString)]
+newtype RhsDict = RhsDict (HM.HashMap Text [BEL.Part])
+  deriving (Show, Eq)
+
+renderRhsDict :: BEL.Env -> RhsDict -> IO [(BS.ByteString, BS.ByteString)]
+renderRhsDict env (RhsDict dict) = do
+    results <- HM.traverseWithKey (renderHeader env) dict
+    let toByteStringPairs :: [(Text, BS.ByteString)] -> [(BS.ByteString, BS.ByteString)]
+        toByteStringPairs = map (\(k, v) -> (TE.encodeUtf8 k, v))
+    pure $ toByteStringPairs $ HM.toList results
+  where
+    renderHeader :: BEL.Env -> Text -> [BEL.Part] -> IO BS.ByteString
+    renderHeader env _ parts = do
+        val <- BEL.render env (Aeson.String "") parts
+        pure $ case val of
+            Aeson.String s -> TE.encodeUtf8 s
+            _ -> TE.encodeUtf8 (Text.pack $ show val)
 
 main :: IO ()
 main = defaultMain $ testGroup "Tests"
@@ -382,31 +399,32 @@ apiRender = testCase "render template parts" $ do
         all -> assertFailure $ show all
 
 renderRequestHeaders :: TestTree
-renderRequestHeaders = testCase "render generates request headers" $ do
+renderRequestHeaders = testCase "render generates request headers via RhsDict fold" $ do
     let envHeaders = dummy { bindings = HM.fromList
             [ ("HEADER_ACCEPT", Aeson.String "application/json")
             , ("HEADER_CONTENT_TYPE", Aeson.String "application/json")
             , ("HEADER_X_REQUEST_ID", Aeson.String "req-12345")
             ] }
 
-    let acceptParts = BEL.partitions "{{HEADER_ACCEPT}}"
-    let contentTypeParts = BEL.partitions "{{HEADER_CONTENT_TYPE}}"
-    let xReqIdParts = BEL.partitions "{{HEADER_X_REQUEST_ID}}"
+    let dict = HM.fromList
+            [ ("Accept", BEL.partitions "{{HEADER_ACCEPT}}")
+            , ("Content-Type", BEL.partitions "{{HEADER_CONTENT_TYPE}}")
+            , ("X-Request-Id", BEL.partitions "{{HEADER_X_REQUEST_ID}}")
+            ]
+        rhsDict = RhsDict dict
 
-    acceptVal <- BEL.render envHeaders (Aeson.String "") acceptParts
-    contentTypeVal <- BEL.render envHeaders (Aeson.String "") contentTypeParts
-    xReqIdVal <- BEL.render envHeaders (Aeson.String "") xReqIdParts
+    headers <- renderRhsDict envHeaders rhsDict
 
-    let mkHeader (Aeson.String v) = v
-        mkHeader _ = ""
+    let expected = [ ("Accept", "application/json")
+                  , ("Content-Type", "application/json")
+                  , ("X-Request-Id", "req-12345")
+                  ]
+        normalize (a, b) = (TE.decodeUtf8 a, TE.decodeUtf8 b)
+        actual = map normalize headers
 
-    let acceptHeader = mkHeader acceptVal
-        contentTypeHeader = mkHeader contentTypeVal
-        xReqIdHeader = mkHeader xReqIdVal
-
-    case (acceptHeader, contentTypeHeader, xReqIdHeader) of
-        ("application/json", "application/json", "req-12345") -> pure ()
-        got -> assertFailure $ "header values mismatch: " ++ show got
+    if all (`elem` actual) expected
+        then pure ()
+        else assertFailure $ "headers mismatch. expected: " ++ show expected ++ " got: " ++ show actual
 
 renderNonStringAccumulator :: TestTree
 renderNonStringAccumulator = testCase "render preserves non-string accumulator" $ do
