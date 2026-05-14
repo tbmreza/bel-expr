@@ -72,6 +72,7 @@ main = defaultMain $ testGroup "Tests"
   , testGroup "API"
       [ apiMapEval
       , apiRender
+      , renderRequestHeaders
       , renderNonStringAccumulator
       , renderEmptyLPart
       , renderBoolInLPart
@@ -379,6 +380,33 @@ apiRender = testCase "render template parts" $ do
     case (av1, av2, av3) of
         (Aeson.String "20", Aeson.String "score 100", Aeson.String "https://kernel.org/animals/route.php?prefilt=9&lim=10&filt=another") -> pure ()
         all -> assertFailure $ show all
+
+renderRequestHeaders :: TestTree
+renderRequestHeaders = testCase "render generates request headers" $ do
+    let envHeaders = dummy { bindings = HM.fromList
+            [ ("HEADER_ACCEPT", Aeson.String "application/json")
+            , ("HEADER_CONTENT_TYPE", Aeson.String "application/json")
+            , ("HEADER_X_REQUEST_ID", Aeson.String "req-12345")
+            ] }
+
+    let acceptParts = BEL.partitions "{{HEADER_ACCEPT}}"
+    let contentTypeParts = BEL.partitions "{{HEADER_CONTENT_TYPE}}"
+    let xReqIdParts = BEL.partitions "{{HEADER_X_REQUEST_ID}}"
+
+    acceptVal <- BEL.render envHeaders (Aeson.String "") acceptParts
+    contentTypeVal <- BEL.render envHeaders (Aeson.String "") contentTypeParts
+    xReqIdVal <- BEL.render envHeaders (Aeson.String "") xReqIdParts
+
+    let mkHeader (Aeson.String v) = v
+        mkHeader _ = ""
+
+    let acceptHeader = mkHeader acceptVal
+        contentTypeHeader = mkHeader contentTypeVal
+        xReqIdHeader = mkHeader xReqIdVal
+
+    case (acceptHeader, contentTypeHeader, xReqIdHeader) of
+        ("application/json", "application/json", "req-12345") -> pure ()
+        got -> assertFailure $ "header values mismatch: " ++ show got
 
 renderNonStringAccumulator :: TestTree
 renderNonStringAccumulator = testCase "render preserves non-string accumulator" $ do
