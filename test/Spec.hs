@@ -50,6 +50,8 @@ main = defaultMain $ testGroup "Tests"
       , testProperty "addition is commutative" propArithAdditionCommutative
       , testProperty "multiplication is commutative" propArithMultiplicationCommutative
       , testProperty "equality is reflexive" propEqualityReflexive
+      , testProperty "renderRhsDict preserves length" propRenderRhsDictLengthPreserved
+      , testProperty "renderRhsDict outputs are non-empty strings" propRenderRhsDictOutputsAreStrings
       ]
   , testGroup "Basic"
       [ testLiteralsEval
@@ -158,6 +160,30 @@ propEqualityReflexive n = ioProperty $ do
     let sn = show n
     r <- run dummy (Text.pack $ sn ++ " == " ++ sn)
     pure $ r == VBool True
+
+propRenderRhsDictLengthPreserved :: [(String, String)] -> Property
+propRenderRhsDictLengthPreserved keyValues = ioProperty $ do
+    let filtered = filter (\(k, _) -> not (null k)) keyValues
+        trimmed = if null filtered then [("key", "value")] else filtered
+        envBindings = HM.fromList $ map (\(k, v) -> (Text.pack k, Aeson.String (Text.pack v))) trimmed
+        envWithBindings = dummy { bindings = envBindings }
+        dict = HM.fromList $ map (\(k, v) -> (Text.pack k, BEL.partitions (Text.concat ["{{", Text.pack k, "}}"]))) trimmed
+        rhsDict = RhsDict dict
+    headers <- renderRhsDict envWithBindings rhsDict
+    pure $ length headers == length trimmed
+
+-- ??: failed on [(" ","a")]
+propRenderRhsDictOutputsAreStrings :: [(String, String)] -> Property
+propRenderRhsDictOutputsAreStrings keyValues = ioProperty $ do
+    let filtered = filter (\(k, v) -> not (null k) && not (null v)) keyValues
+        trimmed = if null filtered then [("KEY", "val")] else filtered
+        envBindings = HM.fromList $ map (\(k, v) -> (Text.pack k, Aeson.String (Text.pack v))) trimmed
+        envWithBindings = dummy { bindings = envBindings }
+        dict = HM.fromList $ map (\(k, v) -> (Text.pack k, BEL.partitions (Text.concat ["{{", Text.pack k, "}}"]))) trimmed
+        rhsDict = RhsDict dict
+    headers <- renderRhsDict envWithBindings rhsDict
+    let allValuesNonEmpty = all (\(_, val) -> not (BS.null val)) headers
+    pure allValuesNonEmpty
 
 --------------------------------------------------------------------------------
 -- Basic

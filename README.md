@@ -15,3 +15,11 @@ I could find on github at the time of writing.
 CEL apparently backs evaluation of config programs in the cloud computing ecosystem.
 The evaluator is based on Google RPC protobuf messages (hoping to save you a click).
 </details>
+
+## Stash
+
+   renderRhsDict outputs are non-empty strings:       FAIL (0.11s)
+      *** Failed! Falsified (after 70 tests and 12 shrinks):
+      [(" ","a")]
+      Use --quickcheck-replay="(SMGen 8447041471513427249 16309472026593378269,69)" to reproduce.
+      Use -p '/renderRhsDict outputs are non-empty strings/' to rerun this test only.
