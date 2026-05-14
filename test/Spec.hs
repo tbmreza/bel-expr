@@ -13,14 +13,16 @@ import qualified Data.Aeson.Types as Aeson (Value(..))
 import qualified Data.Text as Text
 import qualified Data.ByteString.Lazy as LBS
 
-import Network.HTTP.Client (Response(..), Request(..), defaultRequest,
-                            createCookieJar)
-import Network.HTTP.Client.Internal (Response(..))
-import Network.HTTP.Types.Status (mkStatus)
-import Network.HTTP.Types.Version (http11)
+import           Network.HTTP.Client (Response(..), Request(..), defaultRequest, createCookieJar)
+import           Network.HTTP.Client.Internal (Response(..))
+import           Network.HTTP.Types.Status (mkStatus)
+import           Network.HTTP.Types.Version (http11)
 
 import           BEL
 import           BEL.Pratt
+
+-- newtype RhsDict = RhsDict (HM.HashMap Text [BEL.Part])
+-- renderRequestHeaders :: BEL.Env -> RhsDict -> IO [(HeaderName, BS.ByteString)]
 
 main :: IO ()
 main = defaultMain $ testGroup "Tests"
@@ -461,7 +463,7 @@ assertException action check = do
 
 makeEnvWithBody :: LBS.ByteString -> Env
 makeEnvWithBody body = Env
-  { responseCopy = Response
+  { storedResponse = Response
       { responseStatus     = mkStatus 200 "OK"
       , responseVersion    = http11
       , responseHeaders    = [("Content-Type", "application/json")]
@@ -470,7 +472,7 @@ makeEnvWithBody body = Env
       , responseOriginalRequest = defaultRequest
       , responseEarlyHints = []
       }
-  , requestCopy = defaultRequest
+  , storedRequest = defaultRequest
   , bindings    = HM.empty
   }
 

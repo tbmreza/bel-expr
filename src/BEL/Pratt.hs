@@ -16,13 +16,13 @@ import qualified Data.Text as Text
 import qualified Data.Aeson as Aeson
 import           Data.Scientific (Scientific)
 
-import Data.ByteString.Lazy (ByteString)
-import Network.HTTP.Client (Response (..), Request (..))
+import           Data.ByteString.Lazy (ByteString)
+import           Network.HTTP.Client (Response (..), Request (..))
 
 data Env = Env
-  { responseCopy :: Response ByteString
-  , requestCopy ::  Request
-  , bindings ::     HM.HashMap Text Aeson.Value
+  { storedResponse :: Response ByteString
+  , storedRequest ::  Request
+  , bindings ::       HM.HashMap Text Aeson.Value
   }
 
 data Token =
@@ -75,21 +75,36 @@ data Expr where
     EHeaderNotExists :: Expr -> Expr  -- arg is Expr reducible to headers key
     EHeaderExists    :: Expr -> Expr
 
-  -- >debug data
-  -- >debug "$"
-  -- >debug "$.maybe.null.at.path"
-  -- >debug "$.ill.path.."
-
--- data Checked
--- data Unchecked
---
 -- data JsonpathStr state where
 --     JsonpathStrNew :: String -> JsonpathStr Unchecked
 --     JsonpathStrOk  :: String -> JsonpathStr Checked
 --
 -- deriving instance Show (JsonpathStr state)
 -- deriving instance Eq   (JsonpathStr state)
-deriving instance Show Expr
+instance Show Expr where
+    show (VTrace e tp) = "VTrace " ++ show e ++ " " ++ show tp
+    show (VBool b) = "VBool " ++ show b
+    show (VObj o) = "VObj " ++ show o
+    show (VArray a) = "VArray " ++ show a
+    show VNull = "VNull"
+    show (VString s) = Text.unpack s
+    show (VNum n) = "VNum " ++ show n
+    show (VIdent i) = "VIdent " ++ show i
+    show (ENeg e) = "ENeg " ++ show e
+    show (EEq l r) = "EEq " ++ show l ++ " " ++ show r
+    show (ENeq l r) = "ENeq " ++ show l ++ " " ++ show r
+    show (ELte l r) = "ELte " ++ show l ++ " " ++ show r
+    show (EGte l r) = "EGte " ++ show l ++ " " ++ show r
+    show (EAdd l r) = "EAdd " ++ show l ++ " " ++ show r
+    show (ESub l r) = "ESub " ++ show l ++ " " ++ show r
+    show (EMul l r) = "EMul " ++ show l ++ " " ++ show r
+    show (EDiv l r) = "EDiv " ++ show l ++ " " ++ show r
+    show (EDebug e) = "EDebug " ++ show e
+    show (ECopy e) = "ECopy " ++ show e
+    show (EJsonpath e) = "EJsonpath " ++ show e
+    show (EHeaderNotExists e) = "EHeaderNotExists " ++ show e
+    show (EHeaderExists e) = "EHeaderExists " ++ show e
+
 deriving instance Eq   Expr
 
 -- Pratt Parser Implementation

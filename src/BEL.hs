@@ -116,8 +116,8 @@ aesonToExpr Aeson.Null       = VNull
 -- ??: String responseBody assumption can get us a long way.
 queryEnvRespBody :: Env -> Text -> Expr
 queryEnvRespBody env q =
-    let lbs :: LBS.ByteString = responseBody (responseCopy env) in
-    trace ("working with response=" ++ show (responseCopy env)) $ case Aeson.decode lbs of
+    let lbs :: LBS.ByteString = responseBody (storedResponse env) in
+    trace ("working with response=" ++ show (storedResponse env)) $ case Aeson.decode lbs of
         Nothing -> VNull
         Just root ->
             case queryBody (show' q) root of
@@ -126,19 +126,19 @@ queryEnvRespBody env q =
 
 queryEnvRespHeaders :: Env -> Text -> Expr
 queryEnvRespHeaders env q =
-    let headers = responseHeaders (responseCopy env) in
-    trace ("working with response=" ++ show (responseCopy env)) $ VBool $ case lookup (mk (TE.encodeUtf8 q)) headers of
+    let headers = responseHeaders (storedResponse env) in
+    trace ("working with response=" ++ show (storedResponse env)) $ VBool $ case lookup (mk (TE.encodeUtf8 q)) headers of
          Just _  -> True
          Nothing -> False
 
 showRespBody :: Env -> Expr
 showRespBody env =
-    let lbs = responseBody (responseCopy env) in
+    let lbs = responseBody (storedResponse env) in
     VString (TE.decodeUtf8 (LBS.toStrict lbs))
 
 dummy :: Env
 dummy = Env
-  { responseCopy = Response
+  { storedResponse = Response
       { responseStatus     = mkStatus 200 "OK"
       , responseVersion    = http11
       , responseHeaders    =
@@ -160,7 +160,7 @@ dummy = Env
       , responseEarlyHints = []
       }
 
-  , requestCopy = defaultRequest
+  , storedRequest = defaultRequest
       { method         = "POST"
       , host           = "api.example.com"
       , port           = 443
