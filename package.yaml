@@ -21,16 +21,12 @@ description:         Please see the README on GitHub at <https://github.com/gith
 
 dependencies:
 - base >= 4.7 && < 5
-- transformers
 - megaparsec
-- hashable
 - unordered-containers
 - text
 - bytestring
 - aeson
-- random
 - time
-- regex-posix
 - scientific
 - aeson-jsonpath >= 0.3.0.2 && < 0.4.0.0
 - vector
@@ -50,6 +46,9 @@ ghc-options:
 - -Wmissing-home-modules
 - -Wpartial-fields
 - -Wredundant-constraints
+- -optl-s
+- -split-sections
+- -optl-Wl,--gc-sections
 
 library:
   source-dirs: src
@@ -57,17 +56,6 @@ library:
   - BEL.BatteriesMain
   - BEL
   - BEL.Pratt
-
-executables:
-  bel-expr-exe:
-    main:                Main.hs
-    source-dirs:         app
-    ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    dependencies:
-    - bel-expr
 
 tests:
   bel-expr-test:
