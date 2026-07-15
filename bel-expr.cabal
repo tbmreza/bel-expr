@@ -40,13 +40,17 @@ library
     , base >=4.7 && <5
     , bytestring
     , case-insensitive
+    , hashable
     , http-client
     , http-types
     , lens
     , megaparsec
+    , random
+    , regex-posix
     , scientific
     , text
     , time
+    , transformers
     , unordered-containers
     , vector
   default-language: Haskell2010
@@ -68,16 +72,20 @@ test-suite bel-expr-test
     , bel-expr
     , bytestring
     , case-insensitive
+    , hashable
     , http-client
     , http-types
     , lens
     , megaparsec
+    , random
+    , regex-posix
     , scientific
     , tasty
     , tasty-hunit
     , tasty-quickcheck
     , text
     , time
+    , transformers
     , unordered-containers
     , vector
   default-language: Haskell2010
