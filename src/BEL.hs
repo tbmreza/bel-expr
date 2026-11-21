@@ -7,13 +7,12 @@ module BEL
   , partitions, Part(..)
   , render
   , mapEval
+  , evalText
   , eval
   , Token(..), Expr(..), match, finalValue, queryEnvRespBody
   , dummy
   ) where
 
-
-import Debug.Trace
 
 import           Control.Lens
 import           Control.Applicative (empty)
@@ -23,7 +22,7 @@ import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Void (Void)
 import qualified Data.Vector as Vec
-import qualified Data.Aeson as Aeson (Value(..), decode)
+import qualified Data.Aeson as Aeson (Value(..), decode, encode)
 import qualified Data.Aeson.JSONPath as Aeson (query)
 import qualified Text.Megaparsec.Char.Lexer as L
 import qualified Text.Megaparsec.Char as C
@@ -90,6 +89,23 @@ mapEval env lines = do
                 let (expr, _rest) = pratt 0 tokens
                 eval env expr
 
+-- | Evaluate a single expression (the inside of a @{{...}}@ template) to a
+-- JSON value. Pure: no IO, no printing, no clipboard side effects.
+--
+-- Unparsable input is returned verbatim as 'Aeson.String', mirroring
+-- 'mapEval'. A @debug@/@copy@ ('VTrace') result yields the traced
+-- argument's value.
+evalText :: Env -> Text -> Aeson.Value
+evalText env input =
+    case runExprP input of
+        Left _ -> Aeson.String input
+        Right tokens ->
+            let (expr, _rest) = pratt 0 tokens
+            in finalValue (untrace (match env expr))
+  where
+    untrace (VTrace arg _) = untrace arg
+    untrace e              = e
+
 runExprP input = runParser (exprP <* eof) "" input
 
 finalValue :: Expr -> Aeson.Value
@@ -117,7 +133,7 @@ aesonToExpr Aeson.Null       = VNull
 queryEnvRespBody :: Env -> Text -> Expr
 queryEnvRespBody env q =
     let lbs :: LBS.ByteString = responseBody (storedResponse env) in
-    trace ("working with response=" ++ show (storedResponse env)) $ case Aeson.decode lbs of
+    case Aeson.decode lbs of
         Nothing -> VNull
         Just root ->
             case queryBody (show' q) root of
@@ -127,7 +143,7 @@ queryEnvRespBody env q =
 queryEnvRespHeaders :: Env -> Text -> Expr
 queryEnvRespHeaders env q =
     let headers = responseHeaders (storedResponse env) in
-    trace ("working with response=" ++ show (storedResponse env)) $ VBool $ case lookup (mk (TE.encodeUtf8 q)) headers of
+    VBool $ case lookup (mk (TE.encodeUtf8 q)) headers of
          Just _  -> True
          Nothing -> False
 
@@ -215,9 +231,7 @@ eval env = go
 
     go expr = case match env expr of
         traceExpr@(VTrace _ _) -> go traceExpr
-        evaluatedExpr          -> do
-            print expr
-            pure evaluatedExpr
+        evaluatedExpr          -> pure evaluatedExpr
 
 match :: Env -> Expr -> Expr
 match env = go
@@ -292,15 +306,15 @@ match env = go
         case (go e1, go e2) of
             (VNum v1, VNum v2) -> VNum (v1 / v2)
             (r1, r2) -> EDiv r1 r2
-    go e = trace ("match::" ++ show e) e
+    go e = e
 
 -- Expect one matching Value. Hoogle Data.Aeson.JSONPath to explore other
 -- interfaces.
 queryBody :: String -> Aeson.Value -> Maybe Aeson.Value
 queryBody q root = case Aeson.query q root of
-    Left _ -> trace ("qbn1;q=" ++ show q ++ ";root=" ++ show root) Nothing
+    Left _ -> Nothing
     Right v -> case Vec.uncons v of
-        Nothing ->       trace "qbn2" Nothing
+        Nothing ->       Nothing
         Just (one, _) -> Just one
 
 -- (auto)
@@ -475,12 +489,12 @@ render env = go
 
 renderValue :: Expr -> String
 renderValue e = case finalValue e of
-    Aeson.String txt -> show' txt
+    Aeson.String txt -> Text.unpack txt
     Aeson.Number n -> case floatingOrInteger n of
                           Right (i :: Integer) -> show i
                           Left (_ :: Double)   -> show n
-    Aeson.Object obj -> show obj
-    Aeson.Array arr -> show arr
+    obj@(Aeson.Object _) -> encodeCompact obj
+    arr@(Aeson.Array _) -> encodeCompact arr
     Aeson.Null -> "null"
     Aeson.Bool b -> map toLower $ show b
   where
@@ -488,16 +502,20 @@ renderValue e = case finalValue e of
 
 renderValueAsString :: Aeson.Value -> String
 renderValueAsString v = case v of
-    Aeson.String txt -> show' txt
+    Aeson.String txt -> Text.unpack txt
     Aeson.Number n -> case floatingOrInteger n of
                           Right (i :: Integer) -> show i
                           Left (_ :: Double)   -> show n
-    Aeson.Object obj -> show obj
-    Aeson.Array arr -> show arr
+    obj@(Aeson.Object _) -> encodeCompact obj
+    arr@(Aeson.Array _) -> encodeCompact arr
     Aeson.Null -> "null"
     Aeson.Bool b -> map toLower $ show b
   where
     toLower c = if c >= 'A' && c <= 'Z' then toEnum (fromEnum c - fromEnum 'A' + fromEnum 'a') else c
+
+-- Compact JSON, decoded as UTF-8 (lenient: aeson always emits valid UTF-8).
+encodeCompact :: Aeson.Value -> String
+encodeCompact = Text.unpack . TE.decodeUtf8Lenient . LBS.toStrict . Aeson.encode
 
 --------------------------------------------------------------------------------
 -- More lib than app code
