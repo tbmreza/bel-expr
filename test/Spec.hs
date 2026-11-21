@@ -10,6 +10,8 @@ import           Test.Tasty.QuickCheck hiding (Fn)
 
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Aeson.Types as Aeson (Value(..))
+import qualified Data.Aeson as Aeson (object, (.=))
+import qualified Data.Vector as Vec
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.ByteString.Lazy as LBS
@@ -97,6 +99,17 @@ main = defaultMain $ testGroup "Tests"
       , renderBoolInLPart
       , renderNullInLPart
       , renderArrayInLPart
+      , renderStringVerbatim
+      , renderObjectCompactJson
+      , renderArrayCompactJson
+      ]
+  , testGroup "evalText"
+      [ evalTextIdent
+      , evalTextArith
+      , evalTextJsonpath
+      , evalTextUnbound
+      , evalTextUnparsable
+      , evalTextDebug
       ]
   , testGroup "queryEnvRespBody Assumptions"
       [ testQueryEnvInvalidJson
@@ -519,6 +532,56 @@ renderArrayInLPart = testCase "render handles array in L part" $ do
                     then pure ()
                     else assertFailure $ "array not rendered: " ++ show s
         _ -> assertFailure "should return string"
+
+renderStringVerbatim :: TestTree
+renderStringVerbatim = testCase "render emits string bindings verbatim (quotes, backslash, non-ASCII)" $ do
+    let raw = "say \"hi\" C:\\tmp caf\233 \955" :: Text
+        envNew = BEL.Env { bindings = HM.fromList [("S", Aeson.String raw)] }
+    av <- BEL.render envNew (Aeson.String "") (BEL.partitions "{{S}}")
+    av @?= Aeson.String raw
+    av2 <- BEL.render envNew (Aeson.String "") (BEL.partitions "x={{S}};")
+    av2 @?= Aeson.String (Text.concat ["x=", raw, ";"])
+
+renderObjectCompactJson :: TestTree
+renderObjectCompactJson = testCase "render emits object bindings as compact JSON" $ do
+    let obj = Aeson.object ["a" Aeson..= (1 :: Int), "b" Aeson..= ("x\"y" :: Text)]
+        envNew = BEL.Env { bindings = HM.fromList [("O", obj)] }
+    av <- BEL.render envNew (Aeson.String "") (BEL.partitions "{{O}}")
+    av @?= Aeson.String "{\"a\":1,\"b\":\"x\\\"y\"}"
+
+renderArrayCompactJson :: TestTree
+renderArrayCompactJson = testCase "render emits array bindings as compact JSON" $ do
+    let arr = Aeson.Array (Vec.fromList [Aeson.String "caf\233", Aeson.Number 2, Aeson.Bool True, Aeson.Null])
+        envNew = BEL.Env { bindings = HM.fromList [("A", arr)] }
+    av <- BEL.render envNew (Aeson.String "") (BEL.partitions "{{A}}")
+    av @?= Aeson.String "[\"caf\233\",2,true,null]"
+
+evalTextIdent :: TestTree
+evalTextIdent = testCase "evalText resolves an identifier" $ do
+    evalText dummy "BASE_URL" @?= Aeson.String "https://api.example.com"
+    evalText dummy "MAX_RETRIES" @?= Aeson.Number 3
+
+evalTextArith :: TestTree
+evalTextArith = testCase "evalText evaluates arithmetic" $
+    evalText dummy "1 + 2" @?= Aeson.Number 3
+
+evalTextJsonpath :: TestTree
+evalTextJsonpath = testCase "evalText evaluates jsonpath against the stored response" $
+    evalText dummy "jsonpath \"$.name\"" @?= Aeson.String "Alice"
+
+evalTextUnbound :: TestTree
+evalTextUnbound = testCase "evalText of an unbound identifier is Null" $
+    evalText dummy "UNKNOWN_VAR" @?= Aeson.Null
+
+evalTextUnparsable :: TestTree
+evalTextUnparsable = testCase "evalText returns unparsable input verbatim" $ do
+    evalText dummy "@@@" @?= Aeson.String "@@@"
+    evalText dummy "hello world!" @?= Aeson.String "hello world!"
+
+evalTextDebug :: TestTree
+evalTextDebug = testCase "evalText unwraps debug/copy to the traced value" $ do
+    evalText dummy "debug BASE_URL" @?= Aeson.String "https://api.example.com"
+    evalText dummy "MAX_RETRIES copy" @?= Aeson.Number 3
 
 assertException :: Exception e => IO a -> (e -> Bool) -> IO ()
 assertException action check = do
